@@ -1,6 +1,7 @@
-// Automated test: starts the game in a headless browser and plays every room with its scripted solution,
+// Automated test: starts the game in a headless browser and plays every level with its generated solution,
 // checking that each room can be escaped and that all hint steps get completed along the way.
-// Run: npm test   (needs Chromium: `npx playwright install chromium` or set CHROME_PATH)
+// Run: npm test            (all 100 levels; needs Chromium: `npx playwright install chromium` or set CHROME_PATH)
+//      LEVELS=1-10 npm test (a range)
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
 import fs from 'node:fs';
@@ -24,18 +25,22 @@ page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 await page.goto('http://127.0.0.1:5199/?test');
 await page.waitForFunction(() => 'walkthrough' in window);
-const count = await page.evaluate(() => window.game.rooms.length);
+const count = await page.evaluate(() => window.game.levels);
+const [from, to] = (process.env.LEVELS ?? `1-${count}`).split('-').map(Number);
 let failed = false;
-for (let i = 0; i < count; i++) {
+let ok = 0;
+for (let n = from; n <= (to || from); n++) {
   try {
-    const id = await page.evaluate((n) => window.walkthrough(n), i);
-    console.log(`✔ room ${i + 1}: ${id}`);
+    const id = await page.evaluate((k) => window.walkthrough(k), n);
+    ok++;
+    console.log(`✔ ${id}`);
   } catch (e) {
     failed = true;
-    console.log(`✘ room ${i + 1}: ${e.message.split('\n')[0]}`);
+    console.log(`✘ level ${n}: ${e.message.split('\n')[0]}`);
   }
   await page.evaluate(() => { for (let k = 0; k < 10 && document.querySelector('.modal-bg'); k++) window.game.hud.closeTop(); });
 }
+console.log(`${ok}/${(to || from) - from + 1} levels escaped`);
 if (errors.length) { failed = true; console.log('Browser errors:\n' + errors.join('\n')); }
 await browser.close();
 await server.close();

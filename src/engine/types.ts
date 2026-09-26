@@ -1,19 +1,20 @@
-// Shapes of room definitions. Each room is a TypeScript module that builds its objects and wires up
-// what happens when the player taps them or uses an item on them.
+// Shapes of room definitions. Rooms are produced by the level generator (src/gen); each one builds its
+// objects and wires up what happens when the player taps them or uses an item on them.
 import type * as THREE from 'three';
 import type { Txt } from '../i18n';
-import type { Pose } from '../view/cat';
 import type { Sfx } from '../audio';
 
 export type Flags = Record<string, number | boolean | string | undefined>;
 
 export interface DocDef {
   title?: Txt;
-  /** Text; lines separated by \n. May contain simple emoji/symbol art. */
+  /** Text; lines separated by \n. */
   body: Txt;
-  style?: 'paper' | 'photo' | 'screen' | 'book' | 'sticky';
-  /** extra-large monospace text, for symbol clues */
+  style?: 'paper' | 'typed' | 'torn' | 'blood' | 'photo';
+  /** extra-large text, for symbol clues */
   big?: boolean;
+  /** show mirrored (the player has to read it backwards) */
+  mirror?: boolean;
 }
 
 export interface ItemDef {
@@ -27,7 +28,7 @@ export interface ItemDef {
 export interface CombineDef { a: string; b: string; result: string; say?: Txt }
 
 export type LockDef =
-  | { kind: 'wheels'; chars: string; answer: string; title?: Txt; color?: string }
+  | { kind: 'wheels'; chars: string; answer: string; title?: Txt }
   | { kind: 'keypad'; answer: string; title?: Txt }
   | { kind: 'sequence'; buttons: { id: string; label: string; color: string }[]; answer: string[]; title?: Txt }
   | { kind: 'slide'; tiles: string[]; title?: Txt }
@@ -44,13 +45,7 @@ export interface HintStep {
  *  centre as seen when facing it, `y` up from the floor and `out` metres out from the wall into the room. */
 export interface Place { wall: 0 | 1 | 2 | 3; u: number; y?: number; out?: number; rot?: number }
 
-export interface CatApi {
-  goto(spot: string, instant?: boolean): void;
-  pose(p: Pose): void;
-  meow(): void;
-  happy(): void;
-  readonly spot: string;
-}
+export type ScareKind = 'figure' | 'flicker' | 'bang' | 'whisper';
 
 export interface Ctx {
   f: Flags;
@@ -65,8 +60,7 @@ export interface Ctx {
   zoom(view: string): void;
   sfx(name: Sfx): void;
   vibrate(ms: number): void;
-  cat: CatApi;
-  foundFish(): void;
+  scare(kind: ScareKind): void;
   win(): void;
 }
 
@@ -90,30 +84,33 @@ export interface Builder {
   /** Decoration that doesn't react to taps. */
   put<T extends THREE.Object3D>(node: T, p: Place): T;
   obj(id: string, node: THREE.Object3D, p: Place): ObjHandle;
-  /** Reacts to flags (show/anim) but ignores taps — steam, lights, labels. */
+  /** Reacts to flags (show/anim) but ignores taps — writing, lights, props. */
   fx(id: string, node: THREE.Object3D, p: Place): ObjHandle;
   /** An item lying somewhere; tapping it puts it in the inventory. */
   pickup(item: string, node: THREE.Object3D, p: Place, view?: string, when?: (f: Flags) => boolean): ObjHandle;
-  /** The hidden golden fish collectible. */
-  goldFish(p: Place, view?: string, when?: (f: Flags) => boolean): ObjHandle;
   /** A close-up camera view looking at a point on a wall from `dist` metres away. */
   zoomView(id: string, p: Place & { dist: number; parent?: string; look?: number }): void;
-  catSpot(name: string, p: Place & { pose: Pose; face?: number }): void;
-  cat(start: string): ObjHandle;
 }
 
 export interface RoomTheme {
+  id: string;
+  name: Txt;
   wall: number;
   wall2: number;
   pattern: 'plain' | 'stripes' | 'dots' | 'tiles' | 'diamonds' | 'bricks' | 'planks';
   floor: number;
   floor2: number;
-  floorKind: 'planks' | 'tiles';
+  floorKind: 'planks' | 'tiles' | 'bricks';
   ceiling: number;
   trim: number;
+  /** colour of the flickering bulb */
   light: number;
-  /** darker, moodier rooms (the attic) */
-  dim?: number;
+  /** colour of the fog and the darkness */
+  fog: number;
+  /** 0..1, how much dirt, stains and drips on the walls */
+  grime: number;
+  /** base brightness (1 = normal) */
+  bright: number;
 }
 
 export interface Action {
@@ -121,20 +118,21 @@ export interface Action {
   use?: [string, string];
   combine?: [string, string];
   code?: string;
-  /** Close whatever overlay is open (document, lock). */
   close?: boolean;
 }
 
 export interface RoomDef {
   id: string;
+  level: number;
   name: Txt;
-  icon: string;
   theme: RoomTheme;
   items: Record<string, ItemDef>;
   combos?: CombineDef[];
   hints: HintStep[];
   /** Said when the room starts. */
   intro: Txt;
+  /** Pitch-dark room: almost nothing is visible until the player has the item `torch`. */
+  dark?: boolean;
   build(b: Builder): void;
   /** Scripted walkthrough, used by the automated test to prove the room can be escaped. */
   solution: Action[];

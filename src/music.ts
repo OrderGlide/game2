@@ -1,22 +1,11 @@
-// Soft generated background music: a slow lo-fi chord loop with a gentle music-box melody.
+// Generated horror ambience: a low detuned drone, a cold wind and now and then a lonely out-of-tune piano note.
 import { getAudioContext, whenAudioUnlocked } from './audio';
-
-const CHORDS = [
-  [57, 60, 64, 67], // Am7
-  [53, 57, 60, 64], // Fmaj7
-  [48, 52, 55, 59], // Cmaj7
-  [55, 59, 62, 65], // G7
-];
-const MELODY = [76, 72, 74, 71, 72, 69, 67, 69, 72, 71, 67, 64, 65, 67, 69, 71];
-const BEAT = 0.75;
-
-const hz = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
 
 export class Music {
   private enabled = true;
   private gain: GainNode | null = null;
-  private next = 0;
-  private step = 0;
+  private oscs: OscillatorNode[] = [];
+  private base = 50;
   private timer = 0;
 
   constructor() {
@@ -26,48 +15,87 @@ export class Music {
   setEnabled(on: boolean): void {
     this.enabled = on;
     const ctx = getAudioContext();
-    if (this.gain && ctx) this.gain.gain.setTargetAtTime(on ? 0.05 : 0, ctx.currentTime, 0.3);
+    if (this.gain && ctx) this.gain.gain.setTargetAtTime(on ? 0.09 : 0, ctx.currentTime, 0.5);
+  }
+
+  /** Retune the drone for the current place (Hz). */
+  setDrone(hz: number): void {
+    this.base = hz;
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const ratios = [1, 1.005, 1.5, 2.01];
+    this.oscs.forEach((o, i) => o.frequency.setTargetAtTime(hz * ratios[i], ctx.currentTime, 2));
   }
 
   private start(): void {
     const ctx = getAudioContext();
     if (!ctx || this.gain) return;
     this.gain = ctx.createGain();
-    this.gain.gain.value = this.enabled ? 0.05 : 0;
+    this.gain.gain.value = this.enabled ? 0.09 : 0;
     const lp = ctx.createBiquadFilter();
     lp.type = 'lowpass';
-    lp.frequency.value = 2400;
-    this.gain.connect(lp).connect(ctx.destination);
-    this.next = ctx.currentTime + 0.2;
-    this.timer = window.setInterval(() => this.schedule(), 200);
+    lp.frequency.value = 420;
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 0.07;
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = 180;
+    lfo.connect(lfoGain).connect(lp.frequency);
+    lfo.start();
+    lp.connect(this.gain).connect(ctx.destination);
+    const ratios = [1, 1.005, 1.5, 2.01];
+    for (const r of ratios) {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = this.base * r;
+      const g = ctx.createGain();
+      g.gain.value = r === 1 ? 0.5 : 0.25;
+      o.connect(g).connect(lp);
+      o.start();
+      this.oscs.push(o);
+    }
+    // wind
+    const len = ctx.sampleRate * 4;
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const wind = ctx.createBufferSource();
+    wind.buffer = buf;
+    wind.loop = true;
+    const wf = ctx.createBiquadFilter();
+    wf.type = 'bandpass';
+    wf.frequency.value = 500;
+    wf.Q.value = 0.8;
+    const wg = ctx.createGain();
+    wg.gain.value = 0.18;
+    const wlfo = ctx.createOscillator();
+    wlfo.frequency.value = 0.11;
+    const wlg = ctx.createGain();
+    wlg.gain.value = 300;
+    wlfo.connect(wlg).connect(wf.frequency);
+    wlfo.start();
+    wind.connect(wf).connect(wg).connect(this.gain);
+    wind.start();
+    this.timer = window.setInterval(() => this.piano(), 7000);
   }
 
-  private note(freq: number, t: number, dur: number, type: OscillatorType, vol: number): void {
-    const ctx = getAudioContext()!;
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.type = type;
-    o.frequency.value = freq;
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(vol, t + 0.03);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g).connect(this.gain!);
-    o.start(t);
-    o.stop(t + dur + 0.05);
-  }
-
-  private schedule(): void {
+  private piano(): void {
     const ctx = getAudioContext();
-    if (!ctx || !this.gain) return;
-    if (document.hidden) { this.next = ctx.currentTime + 0.2; return; }
-    while (this.next < ctx.currentTime + 0.6) {
-      const t = this.next;
-      const bar = Math.floor(this.step / 4) % CHORDS.length;
-      if (this.step % 4 === 0) for (const n of CHORDS[bar]) this.note(hz(n - 12), t, BEAT * 4, 'triangle', 0.35);
-      if (this.step % 2 === 0) this.note(hz(CHORDS[bar][0] - 24), t, BEAT * 1.8, 'sine', 0.5);
-      if (this.step % 16 < 12 || this.step % 2 === 0) this.note(hz(MELODY[this.step % MELODY.length]), t, BEAT * 1.2, 'sine', 0.25);
-      this.step++;
-      this.next += BEAT;
+    if (!ctx || !this.gain || document.hidden || Math.random() < 0.45) return;
+    const notes = [0, 1, 6, 7, 11, 12, 13];
+    const n = notes[Math.floor(Math.random() * notes.length)];
+    const f = this.base * 8 * Math.pow(2, n / 12);
+    const t0 = ctx.currentTime;
+    for (const [mul, v] of [[1, 0.25], [2.01, 0.08], [3.02, 0.04]]) {
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = f * mul;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(v, t0 + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 3.5);
+      o.connect(g).connect(this.gain);
+      o.start(t0);
+      o.stop(t0 + 3.6);
     }
   }
 

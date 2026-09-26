@@ -1,40 +1,38 @@
-// All the 2D interface: menu, in-room HUD, inventory, speech bubble, documents, hints, shop, settings, win screen.
+// All the 2D interface: menu with 100 levels, in-room HUD, inventory, messages, notes, hints, shop, settings, win screen.
 import { sfx } from '../audio';
 import { T, fmt, fmtTime, tx } from '../i18n';
 import type { RoomRuntime, RoomUI } from '../engine/room';
-import type { DocDef, LockDef, RoomDef } from '../engine/types';
+import type { DocDef, LockDef, ScareKind } from '../engine/types';
 import {
   SKIP_COST, HINT_COINS, DAILY, adReady, claimDaily, claimFreeHint, coinsFor, dailyAvailable, dailyIndex, freeHintReady,
-  markAd, starsFor, type Profile, type Settings,
+  markAd, starsFor, unlockedUpTo, type Profile, type Settings,
 } from '../profile';
 import { PRODUCTS, type ProductId } from '../platform/config';
-import { SKINS, type SkinId } from '../view/cat';
+import { THEMES } from '../gen/themes';
+import { LEVELS, levelId } from '../gen/level';
 import { btn, el, esc, modal, closeAllModals, modalOpen, topModal } from './dom';
 import { openLock, type LockHandle } from './locks';
 
 export interface Services {
   profile: Profile;
-  rooms: RoomDef[];
   version: string;
   save(): void;
-  startRoom(i: number): void;
+  startLevel(n: number): void;
   toMenu(): void;
   showRewarded(): Promise<boolean>;
-  afterRoom(index: number): void;
+  afterLevel(n: number): void;
   purchase(id: ProductId): Promise<boolean>;
   priceOf(id: ProductId): string;
   grantProduct(id: ProductId): void;
   restore(): Promise<void>;
   applySettings(s: Settings, langChanged: boolean): void;
   resetProgress(): void;
-  portrait(skin: SkinId): string;
-  setSkin(skin: SkinId): void;
 }
 
 export class Hud implements RoomUI {
   root = document.getElementById('ui') as HTMLDivElement;
   rt: RoomRuntime | null = null;
-  roomIndex = 0;
+  level = 1;
   private game = el('div');
   private menuEl = el('div');
   private bubble = el('div', 'bubble off');
@@ -44,12 +42,14 @@ export class Hud implements RoomUI {
   private hintBtn!: HTMLButtonElement;
   private arrows: HTMLButtonElement[] = [];
   private backBtn!: HTMLButtonElement;
+  private flash = el('div', 'scare-flash');
   private lastInv: string[] = [];
+  private chapter = -1;
   lockHandle: LockHandle | null = null;
 
   constructor(public svc: Services) {
     this.buildGame();
-    this.root.appendChild(el('div', 'rotate', T.rotate));
+    this.root.append(el('div', 'vignette'), this.flash, el('div', 'rotate', T.rotate));
   }
 
   get p(): Profile { return this.svc.profile; }
@@ -69,33 +69,30 @@ export class Hud implements RoomUI {
     this.game.append(top, left, right, this.backBtn, this.invEl, this.bubble);
   }
 
-  enterRoom(rt: RoomRuntime, index: number): void {
+  enterRoom(rt: RoomRuntime, level: number): void {
     this.rt = rt;
-    this.roomIndex = index;
+    this.level = level;
     this.menuEl.remove();
-    this.root.appendChild(this.game);
-    (this.game.querySelector('.room-title .nm') as HTMLElement).textContent = `${rt.def.icon} ${tx(rt.def.name)}`;
+    this.root.insertBefore(this.game, this.root.firstChild);
+    (this.game.querySelector('.room-title .nm') as HTMLElement).textContent = `${fmt(T.levelN, { n: level })} · ${tx(rt.def.theme.name)}`;
     this.lastInv = [];
     this.inventoryChanged();
     this.viewChanged();
     this.refreshHintBtn();
-    if (rt.s.elapsed < 1) setTimeout(() => this.say(tx(rt.def.intro), 6000), 600);
+    if (rt.s.elapsed < 1) setTimeout(() => this.say(tx(rt.def.intro), 6500), 700);
   }
 
   update(): void {
-    const rt = this.rt;
-    if (!rt) return;
-    this.timerEl.textContent = fmtTime(rt.s.elapsed);
+    if (this.rt) this.timerEl.textContent = fmtTime(this.rt.s.elapsed);
   }
 
   refreshHintBtn(): void {
     (this.hintBtn.querySelector('.n') as HTMLElement).textContent = String(this.p.hints);
-    // nudge players who've been stuck for a while
-    const stuck = this.rt && this.rt.s.elapsed > 240 && this.rt.hintStep() === 0;
+    const stuck = this.rt && this.rt.s.elapsed > 300 && this.rt.hintStep() === 0;
     this.hintBtn.classList.toggle('pulse', !!stuck || (freeHintReady(this.p) && this.p.hints === 0));
   }
 
-  say(text: string, ms = 3600): void {
+  say(text: string, ms = 3800): void {
     this.bubble.textContent = text;
     this.bubble.classList.remove('off');
     clearTimeout(this.bubbleTimer);
@@ -111,11 +108,24 @@ export class Hud implements RoomUI {
   read(doc: DocDef): void {
     const m = modal(this.root, { cls: 'narrow' });
     if (doc.title) m.panel.appendChild(el('div', 'doc-title', esc(tx(doc.title))));
-    m.panel.appendChild(el('div', `doc ${doc.style ?? 'paper'} ${doc.big ? 'big' : ''}`, esc(tx(doc.body))));
+    m.panel.appendChild(el('div', `doc ${doc.style ?? 'paper'} ${doc.big ? 'big' : ''} ${doc.mirror ? 'mirror' : ''}`, esc(tx(doc.body))));
   }
 
   lock(def: LockDef, onOpen: () => void): void {
     this.lockHandle = openLock(this.root, def, () => { this.lockHandle = null; onOpen(); });
+  }
+
+  scare(kind: ScareKind): void {
+    if (kind === 'whisper') return;
+    const cls = kind === 'figure' ? 'hit' : kind === 'bang' ? 'bang' : 'dark';
+    this.flash.className = 'scare-flash';
+    void this.flash.offsetWidth;
+    this.flash.classList.add(cls);
+    if (kind !== 'flicker') {
+      this.game.classList.remove('shake');
+      void this.game.offsetWidth;
+      this.game.classList.add('shake');
+    }
   }
 
   inventoryChanged(): void {
@@ -131,10 +141,10 @@ export class Hud implements RoomUI {
       const s = btn(def.icon, `slot full ${rt.selected === id ? 'sel' : ''} ${this.lastInv.includes(id) ? '' : 'pop'}`, () => {
         if (rt.selected === id) this.inspect(id);
         else {
-          const before = rt.s.inv.length;
+          const hadSel = !!rt.selected;
           rt.select(id);
           if (rt.selected === id) this.say(fmt(T.selectHint, { n: `${def.icon} ${tx(def.name)}` }), 2600);
-          else if (rt.s.inv.length === before && !rt.selected) this.say(T.cantCombine);
+          else if (hadSel && !rt.selected && rt.s.inv.includes(id)) this.say(T.cantCombine);
         }
       });
       this.invEl.appendChild(s);
@@ -158,48 +168,41 @@ export class Hud implements RoomUI {
     this.backBtn.classList.toggle('hidden', !zoomed);
   }
 
-  fishFound(): void {
-    this.toast(`🐠 ${T.goldFish} ${T.found}`);
-    this.svc.save();
-  }
-
   won(): void {
     const rt = this.rt!;
     const stars = starsFor(rt.s.hintsUsed);
-    const fish = rt.s.fish;
-    const coins = coinsFor(stars, fish);
-    const prev = this.p.rooms[rt.def.id];
-    this.p.rooms[rt.def.id] = {
+    const coins = coinsFor(stars, this.level);
+    const id = levelId(this.level);
+    const prev = this.p.levels[id];
+    this.p.levels[id] = {
       done: true,
       stars: Math.max(prev?.stars ?? 0, stars),
       time: prev?.done && prev.time ? Math.min(prev.time, rt.s.elapsed) : rt.s.elapsed,
-      fish: (prev?.fish ?? false) || fish,
     };
     this.p.coins += coins;
     this.p.current = null;
     this.svc.save();
-    this.showWin(stars, coins, fish);
+    this.showWin(stars, coins);
   }
 
-  private showWin(stars: number, coins: number, fish: boolean): void {
+  private showWin(stars: number, coins: number): void {
     const rt = this.rt!;
-    const m = modal(this.root, { cls: 'narrow', sticky: true });
-    m.panel.appendChild(el('h2', '', `🎉 ${T.escaped}`));
+    const m = modal(this.root, { cls: 'narrow win', sticky: true });
+    m.panel.append(el('h2', 'horror-title', T.escaped), el('div', 'center muted', `${fmt(T.levelN, { n: this.level })} · ${T.escapedSub}`));
     const st = el('div', 'win-stars');
     for (let i = 0; i < 3; i++) {
-      const s = el('span', i < stars ? '' : 'off', '⭐');
+      const s = el('span', i < stars ? '' : 'off', '★');
       s.style.animationDelay = `${0.2 + i * 0.25}s`;
       st.appendChild(s);
     }
     m.panel.appendChild(st);
     const stats = el('div', 'win-stats');
+    const coinRow = el('div', 'stat-row', `<span>🪙 ${T.reward}</span><span class="c">+${coins}</span>`);
     stats.append(
       el('div', 'stat-row', `<span>⏱️ ${T.time}</span><span>${fmtTime(rt.s.elapsed)}</span>`),
       el('div', 'stat-row', `<span>💡 ${T.hintsUsed}</span><span>${rt.s.hintsUsed}</span>`),
-      el('div', 'stat-row', `<span>🐠 ${T.goldFish}</span><span>${fish ? T.found : T.notFound}</span>`),
+      coinRow,
     );
-    const coinRow = el('div', 'stat-row', `<span>🪙 ${T.reward}</span><span class="c">+${coins}</span>`);
-    stats.appendChild(coinRow);
     m.panel.appendChild(stats);
     const row = el('div', 'row');
     row.style.marginTop = '12px';
@@ -212,13 +215,13 @@ export class Hud implements RoomUI {
         dbl.textContent = T.doubled;
       } else { dbl.disabled = false; this.toast(T.adFail); }
     });
-    const last = this.roomIndex >= this.svc.rooms.length - 1;
+    const last = this.level >= LEVELS;
     row.append(
       dbl,
-      btn(last ? `🏠 ${T.menu}` : `${T.nextRoom} ▶`, 'btn green big', () => {
+      btn(last ? `☰ ${T.menu}` : `${T.nextRoom} ▶`, 'btn big', () => {
         m.close();
-        this.svc.afterRoom(this.roomIndex);
-        if (last) { this.svc.toMenu(); this.toast(T.chapterDone); } else this.svc.startRoom(this.roomIndex + 1);
+        this.svc.afterLevel(this.level);
+        if (last) { this.svc.toMenu(); this.toast(T.allDone); } else this.svc.startLevel(this.level + 1);
       }),
     );
     m.panel.appendChild(row);
@@ -236,10 +239,7 @@ export class Hud implements RoomUI {
       m.panel.appendChild(el('h2', '', `💡 ${T.hintTitle}`));
       const step = rt.hintStep();
       const def = rt.def.hints[step];
-      if (!def) {
-        m.panel.appendChild(el('p', 'center', T.noHintNeeded));
-        return;
-      }
+      if (!def) { m.panel.appendChild(el('p', 'center', T.noHintNeeded)); return; }
       const shown = rt.s.shown[step] ?? 0;
       const list = el('div', 'hint-list');
       for (let i = 0; i < shown; i++) {
@@ -250,8 +250,7 @@ export class Hud implements RoomUI {
       const col = el('div', 'col');
       if (shown < def.hints.length) {
         const isSol = shown === def.hints.length - 1;
-        const label = `${isSol ? T.hintSolution : T.hintNext} (1 💡)`;
-        const b = btn(label, 'btn big', () => {
+        const b = btn(`${isSol ? T.hintSolution : T.hintNext} (1 💡)`, 'btn big', () => {
           if (this.p.hints <= 0) return;
           this.p.hints--;
           rt.s.shown[step] = shown + 1;
@@ -263,11 +262,8 @@ export class Hud implements RoomUI {
         });
         b.disabled = this.p.hints <= 0;
         col.appendChild(b);
-      } else {
-        col.appendChild(el('p', 'center muted', T.hintDone));
-      }
+      } else col.appendChild(el('p', 'center muted', T.hintDone));
       col.appendChild(el('div', 'center', `<span class="pill">💡 ${this.p.hints}</span>`));
-      // ways to get more hints
       if (freeHintReady(this.p)) {
         col.appendChild(btn(`🎁 ${T.hintFreeReady}`, 'btn green', () => { claimFreeHint(this.p); sfx('pick'); this.svc.save(); this.refreshHintBtn(); draw(); }));
       } else {
@@ -306,31 +302,31 @@ export class Hud implements RoomUI {
     const rt = this.rt;
     if (!rt) return;
     const m = modal(this.root, { cls: 'narrow' });
-    m.panel.appendChild(el('h2', '', `⏸️ ${T.paused}`));
+    m.panel.appendChild(el('h2', '', T.paused));
     const col = el('div', 'col');
     col.append(
-      btn(`▶ ${T.resume}`, 'btn green big', () => m.close()),
-      btn(`⏭️ ${fmt(T.skipRoom, { n: SKIP_COST })}`, 'btn', () => {
+      btn(`▶ ${T.resume}`, 'btn big', () => m.close()),
+      btn(`⏭️ ${fmt(T.skipRoom, { n: SKIP_COST })}`, 'btn plain', () => {
         if (this.p.hints < SKIP_COST) { m.close(); this.openShop(); return; }
         this.confirm(T.skipConfirm, () => {
           this.p.hints -= SKIP_COST;
-          const prev = this.p.rooms[rt.def.id];
-          this.p.rooms[rt.def.id] = { done: true, stars: prev?.stars ?? 0, time: prev?.time ?? 0, fish: prev?.fish ?? rt.s.fish };
+          const id = levelId(this.level);
+          const prev = this.p.levels[id];
+          this.p.levels[id] = { done: true, stars: prev?.stars ?? 0, time: prev?.time ?? 0 };
           this.p.current = null;
           this.svc.save();
           closeAllModals();
-          const last = this.roomIndex >= this.svc.rooms.length - 1;
-          if (last) this.svc.toMenu(); else this.svc.startRoom(this.roomIndex + 1);
+          if (this.level >= LEVELS) this.svc.toMenu(); else this.svc.startLevel(this.level + 1);
         });
       }),
       btn(`🔄 ${T.restartRoom}`, 'btn plain', () => this.confirm(T.restartConfirm, () => {
         this.p.current = null;
         this.svc.save();
         closeAllModals();
-        this.svc.startRoom(this.roomIndex);
+        this.svc.startLevel(this.level);
       })),
       btn(`⚙️ ${T.settings}`, 'btn plain', () => this.openSettings()),
-      btn(`🏠 ${T.toMenu}`, 'btn plain', () => { closeAllModals(); this.svc.toMenu(); }),
+      btn(`☰ ${T.toMenu}`, 'btn plain', () => { closeAllModals(); this.svc.toMenu(); }),
     );
     m.panel.appendChild(col);
   }
@@ -339,7 +335,7 @@ export class Hud implements RoomUI {
     const m = modal(this.root, { cls: 'narrow' });
     m.panel.append(el('p', 'center', `<b>${esc(text)}</b>`));
     const row = el('div', 'row');
-    row.append(btn('✔', 'btn green', () => { m.close(); yes(); }), btn('✕', 'btn plain', () => m.close()));
+    row.append(btn('✔', 'btn', () => { m.close(); yes(); }), btn('✕', 'btn plain', () => m.close()));
     m.panel.appendChild(row);
   }
 
@@ -352,56 +348,62 @@ export class Hud implements RoomUI {
     this.menuEl.remove();
     this.menuEl = el('div', 'menu');
     const p = this.p;
+    const unlocked = unlockedUpTo(p, LEVELS);
+    const cur = p.current ? Number(p.current.id.slice(1)) : 0;
+    const playLevel = cur || unlocked;
+    if (this.chapter < 0) this.chapter = Math.floor((playLevel - 1) / 10);
     const left = el('div', 'menu-left');
     left.appendChild(el('div', 'logo', `${T.title}<small>${T.subtitle}</small>`));
-    const stats = el('div', 'menu-stats');
-    const totalStars = Object.values(p.rooms).reduce((a, r) => a + r.stars, 0);
-    const fish = Object.values(p.rooms).filter((r) => r.fish).length;
-    stats.append(el('span', 'pill', `🪙 ${p.coins}`), el('span', 'pill', `💡 ${p.hints}`), el('span', 'pill', `⭐ ${totalStars}`), el('span', 'pill', `🐠 ${fish}/${this.svc.rooms.length}`));
+    const done = Object.values(p.levels).filter((l) => l.done).length;
+    const stars = Object.values(p.levels).reduce((a, l) => a + l.stars, 0);
     const buttons = el('div', 'menu-buttons');
-    const next = this.nextRoomIndex();
-    const cur = p.current ? this.svc.rooms.findIndex((r) => r.id === p.current!.id) : -1;
-    const playIdx = cur >= 0 ? cur : next;
-    buttons.append(
-      btn(`▶ ${cur >= 0 ? T.continue : T.play}`, 'btn green big', () => this.svc.startRoom(playIdx)),
-    );
+    buttons.append(btn(`▶ ${cur ? T.continue : T.play} · ${playLevel}`, 'btn big', () => this.svc.startLevel(playLevel)));
+    const stats = el('div', 'menu-stats');
+    stats.append(el('span', 'pill', fmt(T.progress, { n: done, m: LEVELS })), el('span', 'pill', `★ ${stars}`), el('span', 'pill', `💡 ${p.hints}`), el('span', 'pill', `🪙 ${p.coins}`));
     const small = el('div', 'menu-buttons');
     const daily = btn('🎁', 'round', () => this.openDaily());
     if (dailyAvailable(p)) daily.appendChild(el('span', 'badge', '1'));
-    small.append(btn('🛒', 'round', () => this.openShop()), btn('🐱', 'round', () => this.openWardrobe()), daily, btn('⚙️', 'round', () => this.openSettings()));
+    small.append(btn('🛒', 'round', () => this.openShop()), daily, btn('⚙️', 'round', () => this.openSettings()));
     left.append(buttons, stats, small);
 
     const right = el('div', 'menu-right');
-    right.appendChild(el('h3', '', T.chapter1));
-    const grid = el('div', 'rooms');
-    this.svc.rooms.forEach((r, i) => {
-      const res = p.rooms[r.id];
-      const unlocked = i === 0 || !!p.rooms[this.svc.rooms[i - 1].id]?.done;
-      const card = btn('', `room-card ${unlocked ? '' : 'locked'} ${i === playIdx ? 'current' : ''}`, () => {
-        if (!unlocked) { this.toast(T.finishPrev); return; }
-        this.svc.startRoom(i);
-      });
-      card.append(el('span', 'num', String(i + 1)), el('span', 'ic', unlocked ? r.icon : '🔒'), el('span', 'nm', unlocked ? esc(tx(r.name)) : T.locked));
-      const stars = res?.done ? '⭐'.repeat(res.stars) + '☆'.repeat(3 - res.stars) : '';
-      card.appendChild(el('span', 'st', stars || '&nbsp;'));
-      if (res?.fish) card.appendChild(el('span', 'fish', '🐠'));
-      grid.appendChild(card);
+    const tabs = el('div', 'chapters');
+    THEMES.forEach((th, i) => {
+      const open = unlocked > i * 10;
+      const b = btn(`${i + 1}`, `chap ${i === this.chapter ? 'on' : ''} ${open ? '' : 'locked'}`, () => { this.chapter = i; this.showMenu(); });
+      b.title = tx(th.name);
+      tabs.appendChild(b);
     });
-    const soon = el('div', 'room-card locked');
-    soon.append(el('span', 'ic', '🚧'), el('span', 'nm', T.comingSoon));
-    grid.appendChild(soon);
+    const th = THEMES[this.chapter];
+    right.append(tabs, el('h3', '', `${fmt(T.chapter, { n: this.chapter + 1 })}: ${tx(th.name)}`));
+    const grid = el('div', 'levels');
+    for (let k = 1; k <= 10; k++) {
+      const n = this.chapter * 10 + k;
+      const res = p.levels[levelId(n)];
+      const open = n <= unlocked || !!res?.done;
+      const card = btn('', `lvl ${open ? '' : 'locked'} ${n === playLevel ? 'current' : ''} ${res?.done ? 'done' : ''}`, () => {
+        if (!open) { this.toast(T.finishPrev); return; }
+        this.svc.startLevel(n);
+      });
+      card.append(el('span', 'num', open ? String(n) : '🔒'), el('span', 'st', res?.done ? '★'.repeat(res.stars) + '☆'.repeat(3 - res.stars) : '&nbsp;'));
+      grid.appendChild(card);
+    }
     right.appendChild(grid);
     this.menuEl.append(left, right);
-    this.root.appendChild(this.menuEl);
-    if (dailyAvailable(p) && Object.keys(p.rooms).length > 0) setTimeout(() => { if (!modalOpen()) this.openDaily(); }, 500);
-  }
-
-  nextRoomIndex(): number {
-    const i = this.svc.rooms.findIndex((r) => !this.p.rooms[r.id]?.done);
-    return i < 0 ? 0 : i;
+    this.root.insertBefore(this.menuEl, this.root.firstChild);
+    if (dailyAvailable(p) && done > 0) setTimeout(() => { if (!modalOpen() && !this.rt) this.openDaily(); }, 600);
   }
 
   refreshMenu(): void { if (!this.rt) this.showMenu(); }
+
+  /** First launch: tell players what kind of game this is. */
+  contentWarning(then: () => void): void {
+    const m = modal(this.root, { cls: 'narrow', sticky: true });
+    m.panel.append(el('h2', 'horror-title', '⚠'), el('p', 'center', esc(T.warning)));
+    const row = el('div', 'row');
+    row.appendChild(btn(T.warningOk, 'btn big', () => { m.close(); then(); }));
+    m.panel.appendChild(row);
+  }
 
   // ================= daily =================
 
@@ -418,8 +420,8 @@ export class Hud implements RoomUI {
       grid.appendChild(el('div', cls, `${fmt(T.dailyDay, { n: i + 1 })}<b>${d.hints ? '💡' : '🪙'}</b>${reward}`));
     });
     m.panel.appendChild(grid);
-    const b = btn(T.dailyClaim, 'btn green big', () => {
-      if (claimDaily(p)) { sfx('fish'); this.svc.save(); }
+    const b = btn(T.dailyClaim, 'btn big', () => {
+      if (claimDaily(p)) { sfx('pick'); this.svc.save(); }
       m.close();
     });
     b.disabled = !avail;
@@ -440,7 +442,6 @@ export class Hud implements RoomUI {
       m.panel.appendChild(el('div', 'row', `<span class="pill">🪙 ${p.coins}</span><span class="pill">💡 ${p.hints}</span>`));
       const grid = el('div', 'shop-grid');
       grid.style.marginTop = '12px';
-      // hint for coins
       const coinCard = el('div', 'card');
       coinCard.append(el('div', 'ic', '💡'), el('div', 't', T.buyHintCoins), el('div', 'd', `🪙 ${HINT_COINS}`));
       const cb = btn(`🪙 ${HINT_COINS}`, 'btn', () => {
@@ -467,7 +468,7 @@ export class Hud implements RoomUI {
           if (await this.svc.purchase(prod.id)) {
             this.svc.grantProduct(prod.id);
             this.toast(T.purchaseOk);
-            sfx('win');
+            sfx('unlock');
             draw();
           } else { b.disabled = false; this.toast(T.purchaseFail); }
         });
@@ -484,59 +485,14 @@ export class Hud implements RoomUI {
     draw();
   }
 
-  // ================= wardrobe =================
-
-  openWardrobe(): void {
-    const p = this.p;
-    const m = modal(this.root, { onClose: () => this.refreshMenu() });
-    const fishAll = this.svc.rooms.every((r) => p.rooms[r.id]?.fish);
-    const draw = () => {
-      m.panel.innerHTML = '';
-      m.panel.appendChild(btn('✕', 'x', () => m.close()));
-      m.panel.appendChild(el('h2', '', `🐱 ${T.wardrobe}`));
-      m.panel.appendChild(el('div', 'row', `<span class="pill">🪙 ${p.coins}</span>`));
-      const grid = el('div', 'shop-grid');
-      grid.style.marginTop = '12px';
-      for (const s of SKINS) {
-        const owned = p.skins.includes(s.id) || (s.special === 'fish' && fishAll);
-        const card = el('div', 'card');
-        const img = el('img', 'skin-img');
-        img.src = this.svc.portrait(s.id);
-        card.appendChild(img);
-        let b: HTMLButtonElement;
-        if (p.skin === s.id) b = btn(`✔ ${T.equipped}`, 'btn plain', () => {});
-        else if (owned) b = btn(T.equip, 'btn green', () => { if (!p.skins.includes(s.id)) p.skins.push(s.id); this.svc.setSkin(s.id); draw(); });
-        else if (s.coins) {
-          b = btn(`🪙 ${s.coins}`, 'btn', () => {
-            if (p.coins < s.coins!) { this.toast(T.noCoins); return; }
-            p.coins -= s.coins!;
-            p.skins.push(s.id);
-            sfx('pick');
-            this.svc.setSkin(s.id);
-            draw();
-          });
-          b.disabled = p.coins < s.coins;
-        } else {
-          b = btn(s.special === 'fish' ? `🐠 ${T.skinLockedFish}` : `🎁 ${T.skinLockedPack}`, 'btn plain', () => { if (s.special === 'pack') { m.close(); this.openShop(); } });
-          b.style.fontSize = '12px';
-        }
-        card.appendChild(b);
-        grid.appendChild(card);
-      }
-      m.panel.appendChild(grid);
-    };
-    draw();
-  }
-
   // ================= settings =================
 
   openSettings(): void {
-    const p = this.p;
-    const s = p.settings;
+    const s = this.p.settings;
     const m = modal(this.root, { cls: 'narrow' });
     m.panel.appendChild(el('h2', '', `⚙️ ${T.settings}`));
     const col = el('div', 'col');
-    const toggle = (label: string, key: 'sfx' | 'music' | 'vibration') => {
+    const toggle = (label: string, key: 'sfx' | 'music' | 'vibration' | 'scares') => {
       const row = el('div', 'setting', `<span>${label}</span>`);
       const t = btn('', `toggle ${s[key] ? 'on' : ''}`, () => {
         s[key] = !s[key];
@@ -549,6 +505,7 @@ export class Hud implements RoomUI {
     toggle(`🔊 ${T.sfx}`, 'sfx');
     toggle(`🎵 ${T.music}`, 'music');
     toggle(`📳 ${T.vibration}`, 'vibration');
+    toggle(`👻 ${T.scares}`, 'scares');
     const seg = <K extends 'quality' | 'lang'>(label: string, key: K, opts: [Settings[K], string][]) => {
       const row = el('div', 'setting', `<span>${label}</span>`);
       const g = el('div', 'seg');

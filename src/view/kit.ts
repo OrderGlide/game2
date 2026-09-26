@@ -97,61 +97,132 @@ export function shade(c: number, f: number): number {
 
 export type WallPattern = 'plain' | 'stripes' | 'dots' | 'tiles' | 'planks' | 'bricks' | 'diamonds';
 
-export function patternTex(kind: WallPattern, a: number, b: number, repeat: [number, number]): THREE.CanvasTexture {
-  return canvasTex(256, 256, (c) => {
-    c.fillStyle = hex(a);
-    c.fillRect(0, 0, 256, 256);
-    c.fillStyle = hex(b);
-    c.strokeStyle = hex(b);
-    switch (kind) {
-      case 'stripes':
-        for (let x = 0; x < 256; x += 64) c.fillRect(x, 0, 22, 256);
-        break;
-      case 'dots':
-        for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) {
-          c.beginPath();
-          c.arc(32 + x * 64 + (y % 2) * 32, 32 + y * 64, 7, 0, Math.PI * 2);
-          c.fill();
-        }
-        break;
-      case 'tiles':
-        c.lineWidth = 6;
-        for (let i = 0; i <= 256; i += 64) {
-          c.beginPath(); c.moveTo(i, 0); c.lineTo(i, 256); c.stroke();
-          c.beginPath(); c.moveTo(0, i); c.lineTo(256, i); c.stroke();
-        }
-        break;
-      case 'planks':
-        c.lineWidth = 4;
-        for (let y = 0; y < 256; y += 42) {
-          c.beginPath(); c.moveTo(0, y); c.lineTo(256, y); c.stroke();
-          const off = ((y / 42) % 3) * 90;
-          c.beginPath(); c.moveTo(off + 40, y); c.lineTo(off + 40, y + 42); c.stroke();
-        }
-        // subtle grain
-        c.globalAlpha = 0.12;
-        for (let i = 0; i < 60; i++) c.fillRect(Math.random() * 256, Math.random() * 256, 30 + Math.random() * 60, 2);
-        c.globalAlpha = 1;
-        break;
-      case 'bricks':
-        c.lineWidth = 5;
-        for (let y = 0; y < 256; y += 32) {
-          c.beginPath(); c.moveTo(0, y); c.lineTo(256, y); c.stroke();
-          const off = (y / 32) % 2 ? 32 : 0;
-          for (let x = off; x < 256; x += 64) { c.beginPath(); c.moveTo(x, y); c.lineTo(x, y + 32); c.stroke(); }
-        }
-        break;
-      case 'diamonds':
-        c.globalAlpha = 0.6;
-        for (let y = 0; y < 256; y += 64) for (let x = 0; x < 256; x += 64) {
-          c.beginPath(); c.moveTo(x + 32, y + 8); c.lineTo(x + 56, y + 32); c.lineTo(x + 32, y + 56); c.lineTo(x + 8, y + 32); c.closePath(); c.fill();
-        }
-        c.globalAlpha = 1;
-        break;
-      case 'plain':
-        break;
+/** Draw a repeating wall/floor pattern over a W×H canvas area; `t` = tile size in pixels. */
+export function drawPattern(c: CanvasRenderingContext2D, kind: WallPattern, a: number, b: number, W: number, H: number, t = 64, rnd: () => number = Math.random): void {
+  c.fillStyle = hex(a);
+  c.fillRect(0, 0, W, H);
+  c.fillStyle = hex(b);
+  c.strokeStyle = hex(b);
+  switch (kind) {
+    case 'stripes':
+      for (let x = 0; x < W; x += t) c.fillRect(x, 0, t * 0.34, H);
+      break;
+    case 'dots':
+      for (let y = 0; y * t < H + t; y++) for (let x = 0; x * t < W + t; x++) {
+        c.beginPath();
+        c.arc(t / 2 + x * t + (y % 2) * t / 2, t / 2 + y * t, t * 0.11, 0, Math.PI * 2);
+        c.fill();
+      }
+      break;
+    case 'tiles':
+      c.lineWidth = Math.max(2, t * 0.09);
+      for (let i = 0; i <= W; i += t) { c.beginPath(); c.moveTo(i, 0); c.lineTo(i, H); c.stroke(); }
+      for (let i = 0; i <= H; i += t) { c.beginPath(); c.moveTo(0, i); c.lineTo(W, i); c.stroke(); }
+      break;
+    case 'planks': {
+      const ph = t * 0.66;
+      c.lineWidth = Math.max(2, t * 0.06);
+      for (let y = 0, r = 0; y < H; y += ph, r++) {
+        c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke();
+        for (let x = ((r * 37) % 5) * t * 0.5; x < W; x += t * 2.6) { c.beginPath(); c.moveTo(x, y); c.lineTo(x, y + ph); c.stroke(); }
+      }
+      c.globalAlpha = 0.12;
+      for (let i = 0; i < (W * H) / 1000; i++) c.fillRect(rnd() * W, rnd() * H, t * 0.5 + rnd() * t, 2);
+      c.globalAlpha = 1;
+      break;
     }
-  }, repeat);
+    case 'bricks': {
+      const bh = t / 2;
+      c.lineWidth = Math.max(2, t * 0.08);
+      for (let y = 0, r = 0; y < H; y += bh, r++) {
+        c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke();
+        for (let x = r % 2 ? t / 2 : 0; x < W; x += t) { c.beginPath(); c.moveTo(x, y); c.lineTo(x, y + bh); c.stroke(); }
+      }
+      break;
+    }
+    case 'diamonds':
+      c.globalAlpha = 0.6;
+      for (let y = 0; y < H; y += t) for (let x = 0; x < W; x += t) {
+        c.beginPath(); c.moveTo(x + t / 2, y + t * 0.12); c.lineTo(x + t * 0.88, y + t / 2); c.lineTo(x + t / 2, y + t * 0.88); c.lineTo(x + t * 0.12, y + t / 2); c.closePath(); c.fill();
+      }
+      c.globalAlpha = 1;
+      break;
+    case 'plain':
+      break;
+  }
+}
+
+export function patternTex(kind: WallPattern, a: number, b: number, repeat: [number, number]): THREE.CanvasTexture {
+  return canvasTex(256, 256, (c) => drawPattern(c, kind, a, b, 256, 256, 64), repeat);
+}
+
+/** Dirt, stains, damp and drips over whatever is already on the canvas. `amount` 0..1. */
+export function drawGrime(c: CanvasRenderingContext2D, W: number, H: number, amount: number, rnd: () => number, drips = true): void {
+  // big damp stains
+  for (let i = 0; i < 6 + amount * 30; i++) {
+    const x = rnd() * W;
+    const y = rnd() * H;
+    const r = 20 + rnd() * (60 + amount * 120);
+    const g = c.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(20,14,8,${0.08 + amount * 0.25 * rnd()})`);
+    g.addColorStop(1, 'rgba(20,14,8,0)');
+    c.fillStyle = g;
+    c.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  // dirt near the floor
+  const f = c.createLinearGradient(0, H * 0.65, 0, H);
+  f.addColorStop(0, 'rgba(10,6,4,0)');
+  f.addColorStop(1, `rgba(10,6,4,${0.25 + amount * 0.4})`);
+  c.fillStyle = f;
+  c.fillRect(0, 0, W, H);
+  // water drips from the ceiling
+  if (drips) {
+    for (let i = 0; i < amount * 26; i++) {
+      const x = rnd() * W;
+      const len = H * (0.1 + rnd() * 0.45);
+      const g = c.createLinearGradient(0, 0, 0, len);
+      g.addColorStop(0, `rgba(25,18,10,${0.2 + rnd() * 0.3})`);
+      g.addColorStop(1, 'rgba(25,18,10,0)');
+      c.fillStyle = g;
+      c.fillRect(x, 0, 2 + rnd() * 5, len);
+    }
+  }
+  // scratches and cracks
+  c.strokeStyle = `rgba(15,10,6,${0.3 + amount * 0.4})`;
+  for (let i = 0; i < amount * 14; i++) {
+    c.lineWidth = 1 + rnd() * 1.5;
+    let x = rnd() * W;
+    let y = rnd() * H;
+    c.beginPath();
+    c.moveTo(x, y);
+    for (let k = 0; k < 5; k++) { x += (rnd() - 0.5) * 40; y += rnd() * 30; c.lineTo(x, y); }
+    c.stroke();
+  }
+}
+
+/** Text written in blood (or chalk/paint) with drips — for walls and mirrors. */
+export function drawScrawl(c: CanvasRenderingContext2D, lines: string[], W: number, H: number, color = '#8a0a0a', mirror = false, font = 'Creepster, Impact, fantasy'): void {
+  c.save();
+  if (mirror) { c.translate(W, 0); c.scale(-1, 1); }
+  const size = Math.min(H / (lines.length * 1.25), (W / Math.max(...lines.map((l) => l.length), 1)) * 1.5);
+  c.font = `${size}px ${font}`;
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  lines.forEach((l, i) => {
+    const y = H / 2 + (i - (lines.length - 1) / 2) * size * 1.15;
+    c.fillStyle = color;
+    c.globalAlpha = 0.92;
+    c.fillText(l, W / 2, y);
+    // drips below letters
+    const w = c.measureText(l).width;
+    for (let d = 0; d < l.length * 0.7; d++) {
+      const x = W / 2 - w / 2 + ((d * 97) % 100) / 100 * w;
+      const len = size * (0.2 + ((d * 53) % 10) / 10 * 0.9);
+      c.fillRect(x, y + size * 0.25, size * 0.05, len);
+      c.beginPath(); c.arc(x + size * 0.025, y + size * 0.25 + len, size * 0.045, 0, Math.PI * 2); c.fill();
+    }
+  });
+  c.restore();
 }
 
 /** A flat plane (facing +z) showing canvas-drawn content — labels, notes, clock faces, pictures. */
@@ -180,4 +251,14 @@ export function text(c: CanvasRenderingContext2D, s: string, x: number, y: numbe
   c.textAlign = 'center';
   c.textBaseline = 'middle';
   c.fillText(s, x, y);
+}
+
+export function mulberry32(seed: number): () => number {
+  return () => {
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }

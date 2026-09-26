@@ -23,7 +23,7 @@ export function hollow(w: number, h: number, d: number, color: number, t = 0.04)
   );
 }
 
-function named<T extends THREE.Object3D>(o: T, name: string): T { o.name = name; return o; }
+export function named<T extends THREE.Object3D>(o: T, name: string): T { o.name = name; return o; }
 
 /** Door (1.1 × 2.25 m) with a hinged leaf named 'leaf' (rotate y negative to open). */
 export function door(color = 0x8a5a3b): THREE.Group {

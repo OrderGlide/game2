@@ -1,21 +1,19 @@
 // Runs one escape room: builds the 3D room from its definition, moves the camera between the four walls
 // and close-ups, turns taps into object interactions and keeps the room's state (flags + inventory).
+// Also owns the horror atmosphere: dirty walls, fog, a flickering bulb, darkness + flashlight, and scares.
 import * as THREE from 'three';
 import { sfx, vibrate, type Sfx } from '../audio';
 import { T, tx, type Txt } from '../i18n';
-import { Cat, type Pose, type SkinDef } from '../view/cat';
-import { mat, patternTex, box, shade } from '../view/kit';
-import { goldFishModel, ceilingLamp } from '../view/furniture';
-import type {
-  Action, Builder, CatApi, Ctx, DocDef, Flags, Handler, LockDef, ObjHandle, Place, RoomDef,
-} from './types';
+import { canvasTex, drawGrime, drawPattern, mat, box, shade, mulberry32 } from '../view/kit';
+import { hangingBulb, shadowFigure } from '../view/horror';
+import type { Action, Builder, Ctx, DocDef, Flags, Handler, LockDef, ObjHandle, Place, RoomDef, ScareKind } from './types';
 
 export const HALF = 4;
 export const HEIGHT = 3.4;
 
 const FACING = [new THREE.Vector3(0, 0, -1), new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0)];
 const RIGHT = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 0, -1)];
-const ROT = [0, -Math.PI / 2, Math.PI, Math.PI / 2];
+export const ROT = [0, -Math.PI / 2, Math.PI, Math.PI / 2];
 
 export function wallPoint(p: Place): THREE.Vector3 {
   return FACING[p.wall].clone().multiplyScalar(HALF - (p.out ?? 0))
@@ -31,7 +29,6 @@ export interface RoomSave {
   hintsUsed: number;
   /** how many hints of each step have been revealed */
   shown: Record<number, number>;
-  fish: boolean;
 }
 
 export interface RoomUI {
@@ -41,8 +38,10 @@ export interface RoomUI {
   inventoryChanged(): void;
   viewChanged(): void;
   won(): void;
-  fishFound(): void;
+  scare(kind: ScareKind): void;
 }
+
+export interface RoomOptions { shadows: boolean; scares: boolean }
 
 interface ObjRec {
   id: string;
@@ -53,7 +52,6 @@ interface ObjRec {
   animate?: (f: Flags, node: THREE.Object3D, k: number) => void;
   zoomTo?: string;
   views?: string[];
-  any?: boolean;
 }
 
 interface View { id: string; pos: THREE.Vector3; target: THREE.Vector3; parent: string | null; wall: number; fovScale: number }
@@ -68,81 +66,106 @@ export class RoomRuntime {
   won = false;
   private objs = new Map<string, ObjRec>();
   private views = new Map<string, View>();
-  private spots = new Map<string, { pos: THREE.Vector3; rot: number; pose: Pose }>();
-  private cat: Cat | null = null;
-  private catObj: ObjRec | null = null;
-  private catMove: { from: THREE.Vector3; to: THREE.Vector3; fromRot: number; toRot: number; t: number; pose: Pose } | null = null;
   private camFrom = { pos: new THREE.Vector3(), target: new THREE.Vector3() };
   private camTo = { pos: new THREE.Vector3(), target: new THREE.Vector3() };
   private camT = 1;
+  private camDur = 0.45;
   private camTarget = new THREE.Vector3();
   private aspect = 16 / 9;
   private ray = new THREE.Raycaster();
   private firstFrame = true;
-  private sparkles: { m: THREE.Mesh; t: number }[] = [];
+  // atmosphere
+  private bulb!: THREE.PointLight;
+  private bulbMesh!: THREE.Mesh;
+  private bulbBase = 1;
+  private lights: { l: THREE.Light; base: number }[] = [];
+  private torch = new THREE.SpotLight(0xfff2d0, 0, 9, 0.5, 0.45, 1.2);
+  private blackout = 0;
+  private flickerT = 0;
+  private nextAmbient = 20;
+  private shake = 0;
+  private figure: THREE.Group;
+  private figureT = 0;
+  private time = 0;
 
-  constructor(public def: RoomDef, save: RoomSave | null, private ui: RoomUI, skin: SkinDef, shadows: boolean) {
-    this.s = save && save.id === def.id ? save : { id: def.id, flags: {}, inv: [], elapsed: 0, hintsUsed: 0, shown: {}, fish: false };
+  constructor(public def: RoomDef, save: RoomSave | null, private ui: RoomUI, private opts: RoomOptions) {
+    this.s = save && save.id === def.id ? save : { id: def.id, flags: {}, inv: [], elapsed: 0, hintsUsed: 0, shown: {} };
     this.scene.add(this.root);
-    this.buildShell(shadows);
+    this.buildShell();
     for (let w = 0; w < 4; w++) this.addWallView(w);
-    def.build(this.builder(skin));
+    def.build(this.builder());
+    this.figure = shadowFigure();
+    this.figure.visible = false;
+    this.scene.add(this.figure);
+    this.camera.add(this.torch, this.torch.target);
+    this.torch.position.set(0.15, -0.2, 0);
+    this.torch.target.position.set(0, -0.1, -3);
+    this.scene.add(this.camera);
     this.setView('w0', true);
   }
 
   // ---------- room shell ----------
 
-  private buildShell(shadows: boolean): void {
+  private buildShell(): void {
     const th = this.def.theme;
-    const dim = th.dim ?? 1;
-    this.scene.background = new THREE.Color(shade(th.wall, 0.5));
-    const hemi = new THREE.HemisphereLight(0xfff4e6, shade(th.floor, 0.8), 1.1 * dim);
-    const amb = new THREE.AmbientLight(0xffffff, 0.35 * dim);
-    const sun = new THREE.DirectionalLight(th.light, 1.5 * dim);
-    sun.position.set(2.5, 7, 3.5);
-    sun.target.position.set(0, 0, 0);
-    if (shadows) {
-      sun.castShadow = true;
-      sun.shadow.mapSize.set(1024, 1024);
-      const c = sun.shadow.camera;
-      c.left = -6; c.right = 6; c.top = 6; c.bottom = -6; c.near = 1; c.far = 16;
-      sun.shadow.bias = -0.0015;
-      sun.shadow.normalBias = 0.02;
+    const rnd = mulberry32(this.def.level * 131 + 7);
+    this.scene.background = new THREE.Color(th.fog);
+    this.scene.fog = new THREE.Fog(th.fog, 6, 16);
+    const b = th.bright;
+    const hemi = new THREE.HemisphereLight(0xd8d4dc, shade(th.floor, 0.6), 1.25 * b);
+    const amb = new THREE.AmbientLight(0xffffff, 0.3 * b);
+    const moon = new THREE.DirectionalLight(0x9fb2e0, 0.9 * b);
+    moon.position.set(-3, 6, 4);
+    this.bulb = new THREE.PointLight(th.light, 26 * b, 16, 1.3);
+    this.bulb.position.set(0, HEIGHT - 0.75, 0.3);
+    if (this.opts.shadows) {
+      this.bulb.castShadow = true;
+      this.bulb.shadow.mapSize.set(512, 512);
+      this.bulb.shadow.bias = -0.004;
+      this.bulb.shadow.radius = 3;
     }
-    const lamp = new THREE.PointLight(th.light, 6 * dim, 9, 1.6);
-    lamp.position.set(0, HEIGHT - 0.8, 0);
-    this.scene.add(hemi, amb, sun, sun.target, lamp);
+    this.bulbBase = this.bulb.intensity;
+    this.lights = [{ l: hemi, base: hemi.intensity }, { l: amb, base: amb.intensity }, { l: moon, base: moon.intensity }];
+    this.scene.add(hemi, amb, moon, this.bulb);
+    const hb = hangingBulb(th.light);
+    hb.position.set(0, HEIGHT, 0.3);
+    this.bulbMesh = hb.getObjectByName('glass') as THREE.Mesh;
+    this.root.add(hb);
 
     const S = HALF * 2;
-    const floorTex = patternTex(th.floorKind, th.floor, th.floor2, [4, 4]);
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(S, S), mat(0xffffff, { map: floorTex, rough: 0.7 }));
+    // floor: pattern + dirt, not repeating
+    const floorTex = canvasTex(1024, 1024, (c) => {
+      drawPattern(c, th.floorKind, th.floor, th.floor2, 1024, 1024, 128, rnd);
+      drawGrime(c, 1024, 1024, th.grime * 0.8, rnd, false);
+    });
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(S, S), mat(0xffffff, { map: floorTex, rough: 0.85 }));
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
-    const ceil = new THREE.Mesh(new THREE.PlaneGeometry(S, S), mat(th.ceiling, { rough: 1 }));
+    const ceilTex = canvasTex(512, 512, (c) => {
+      c.fillStyle = `#${th.ceiling.toString(16).padStart(6, '0')}`;
+      c.fillRect(0, 0, 512, 512);
+      drawGrime(c, 512, 512, th.grime, rnd, false);
+    });
+    const ceil = new THREE.Mesh(new THREE.PlaneGeometry(S, S), mat(0xffffff, { map: ceilTex, rough: 1 }));
     ceil.rotation.x = Math.PI / 2;
     ceil.position.y = HEIGHT;
     this.root.add(floor, ceil);
-    const wallTex = patternTex(th.pattern, th.wall, th.wall2, [4, 2]);
-    const wallMat = mat(0xffffff, { map: wallTex, rough: 0.95 });
     for (let w = 0; w < 4; w++) {
-      const wall = new THREE.Mesh(new THREE.PlaneGeometry(S, HEIGHT), wallMat);
+      const wallTex = canvasTex(1024, 436, (c) => {
+        drawPattern(c, th.pattern, th.wall, th.wall2, 1024, 436, 110, rnd);
+        drawGrime(c, 1024, 436, th.grime, rnd);
+      });
+      const wall = new THREE.Mesh(new THREE.PlaneGeometry(S, HEIGHT), mat(0xffffff, { map: wallTex, rough: 0.95 }));
       wall.position.copy(FACING[w]).multiplyScalar(HALF).setY(HEIGHT / 2);
       wall.rotation.y = ROT[w];
       wall.receiveShadow = true;
       this.root.add(wall);
-      // skirting board and crown moulding
       const skirt = box(S, 0.14, 0.05, th.trim);
-      const crown = box(S, 0.1, 0.08, shade(th.ceiling, 0.95));
-      for (const [m, y] of [[skirt, 0], [crown, HEIGHT - 0.1]] as const) {
-        m.position.copy(FACING[w]).multiplyScalar(HALF - 0.025).setY(y + (m === skirt ? 0.07 : 0.05));
-        m.rotation.y = ROT[w];
-        m.castShadow = false;
-        this.root.add(m);
-      }
+      skirt.position.copy(FACING[w]).multiplyScalar(HALF - 0.025).setY(0.07);
+      skirt.rotation.y = ROT[w];
+      skirt.castShadow = false;
+      this.root.add(skirt);
     }
-    const l = ceilingLamp(th.light);
-    l.position.set(0, HEIGHT, 0);
-    this.root.add(l);
   }
 
   private addWallView(w: number): void {
@@ -153,7 +176,7 @@ export class RoomRuntime {
 
   // ---------- builder API used by room definitions ----------
 
-  private builder(skin: SkinDef): Builder {
+  private builder(): Builder {
     const place = <T extends THREE.Object3D>(node: T, p: Place): T => {
       node.position.copy(wallPoint(p));
       node.rotation.y = ROT[p.wall] + (p.rot ?? 0);
@@ -195,82 +218,30 @@ export class RoomRuntime {
         if (view) h.in(view);
         return h;
       },
-      goldFish: (p, view, when) => {
-        const h = obj('goldfish', goldFishModel(), p)
-          .show((f) => !this.s.fish && (when ? when(f) : true))
-          .anim((_f, n) => { n.rotation.y = ROT[p.wall] + Math.sin(performance.now() / 600) * 0.3; })
-          .tap((c) => c.foundFish());
-        if (view) h.in(view);
-        return h;
-      },
       zoomView: (id, p) => {
         const target = wallPoint({ ...p, out: p.out ?? 0.3 });
         const pos = wallPoint({ ...p, out: (p.out ?? 0.3) + p.dist, y: (p.y ?? 0) + (p.look ?? 0.2) });
         this.views.set(id, { id, pos, target, parent: p.parent ?? `w${p.wall}`, wall: p.wall, fovScale: p.dist / 7 });
       },
-      catSpot: (name, p) => {
-        this.spots.set(name, { pos: wallPoint(p), rot: ROT[p.wall] + (p.face ?? 0), pose: p.pose });
-      },
-      cat: (start) => {
-        this.cat = new Cat(skin);
-        this.cat.root.userData.oid = 'cat';
-        this.root.add(this.cat.root);
-        const rec: ObjRec = { id: 'cat', node: this.cat.root, uses: {}, any: true };
-        this.objs.set('cat', rec);
-        this.catObj = rec;
-        this.catApi.goto((this.s.flags.catSpot as string) ?? start, true);
-        return handle(rec);
-      },
     };
   }
-
-  private catApi: CatApi = {
-    goto: (spot, instant = false) => {
-      const sp = this.spots.get(spot);
-      if (!sp || !this.cat) return;
-      this.s.flags.catSpot = spot;
-      if (instant) {
-        this.cat.root.position.copy(sp.pos);
-        this.cat.root.rotation.y = sp.rot;
-        this.cat.setPose(sp.pose);
-        this.catMove = null;
-        return;
-      }
-      this.catMove = { from: this.cat.root.position.clone(), to: sp.pos.clone(), fromRot: this.cat.root.rotation.y, toRot: sp.rot, t: 0, pose: sp.pose };
-      this.cat.setPose('stand');
-      sfx('whoosh');
-    },
-    pose: (p) => this.cat?.setPose(p),
-    meow: () => { sfx('meow'); if (this.cat) this.cat.happy = 0.6; },
-    happy: () => { if (this.cat) this.cat.happy = 1; sfx('purr'); },
-    get spot() { return '' },
-  };
 
   // ---------- context handed to room scripts ----------
 
   private ctx(item: string | null): Ctx {
-    const f = this.s.flags;
-    const self = this;
     return {
-      f,
+      f: this.s.flags,
       item,
       has: (id) => this.s.inv.includes(id),
       give: (id) => this.give(id),
       take: (id) => this.take(id),
-      say: (t) => this.ui.say(tx(t)),
+      say: (t: Txt) => this.ui.say(tx(t)),
       read: (d) => { sfx('paper'); this.ui.read(d); },
       lock: (d, onOpen) => this.ui.lock(d, () => { sfx('unlock'); vibrate(30); onOpen(); this.ui.inventoryChanged(); }),
       zoom: (v) => this.setView(v),
       sfx: (n: Sfx) => sfx(n),
       vibrate,
-      get cat() { return { ...self.catApi, get spot() { return (f.catSpot as string) ?? ''; } }; },
-      foundFish: () => {
-        this.s.fish = true;
-        f.fishFound = true;
-        sfx('fish');
-        vibrate(40);
-        this.ui.fishFound();
-      },
+      scare: (k) => this.scare(k),
       win: () => this.win(),
     };
   }
@@ -320,12 +291,79 @@ export class RoomRuntime {
     if (this.won) return;
     this.won = true;
     this.s.flags.won = true;
-    sfx('win');
+    sfx('door');
     vibrate(60);
-    // walk out through the door
     const v = this.views.get('w0')!;
-    this.moveCamera(v.pos.clone().lerp(v.target, 0.85).setY(1.6), v.target.clone().add(new THREE.Vector3(0, 0, -3)), 1.6);
+    this.moveCamera(v.pos.clone().lerp(v.target, 0.9).setY(1.6), v.target.clone().add(new THREE.Vector3(-1.3, 0.2, -4)), 1.6);
     setTimeout(() => this.ui.won(), 1500);
+  }
+
+  // ---------- scares & atmosphere ----------
+
+  scare(kind: ScareKind): void {
+    if (!this.opts.scares && kind === 'figure') kind = 'flicker';
+    switch (kind) {
+      case 'flicker':
+        this.blackout = 1.1;
+        sfx('whisper');
+        break;
+      case 'whisper':
+        sfx('whisper');
+        break;
+      case 'bang':
+        sfx('bang');
+        this.shake = 0.35;
+        vibrate(80);
+        break;
+      case 'figure': {
+        // a dark shape stands in the room for a split second, in front of whatever wall you face
+        const v = this.currentView;
+        const side = Math.random() < 0.5 ? -1 : 1;
+        const p = wallPoint({ wall: v.wall as 0 | 1 | 2 | 3, u: side * (1.2 + Math.random() * 1.2), out: 1.2 });
+        this.figure.position.copy(p);
+        this.figure.lookAt(this.camera.position.x, 0, this.camera.position.z);
+        this.figure.visible = true;
+        this.figureT = 0.55;
+        this.blackout = 0.7;
+        sfx('scare');
+        vibrate(120);
+        this.shake = 0.25;
+        break;
+      }
+    }
+    this.ui.scare(kind);
+  }
+
+  private get torchOn(): boolean { return this.s.inv.includes('torch'); }
+
+  private updateAtmosphere(dt: number): void {
+    this.time += dt;
+    // bulb flicker: gentle wobble, occasional stutter, and blackouts from scares
+    this.flickerT -= dt;
+    let f = 0.92 + Math.sin(this.time * 23) * 0.03 + Math.sin(this.time * 7.3) * 0.04;
+    if (this.flickerT < 0) {
+      if (Math.random() < 0.004 + (this.def.theme.grime > 0.6 ? 0.004 : 0)) this.flickerT = 0.25 + Math.random() * 0.4;
+    } else f *= Math.random() < 0.5 ? 0.15 : 1;
+    if (this.blackout > 0) { this.blackout -= dt; f *= Math.random() < 0.7 ? 0.05 : 0.6; }
+    const dark = this.def.dark && !this.s.flags.power;
+    const dim = dark ? 0.08 : 1;
+    this.bulb.intensity = this.bulbBase * f * dim;
+    (this.bulbMesh.material as THREE.MeshStandardMaterial).emissiveIntensity = f * dim;
+    for (const { l, base } of this.lights) l.intensity = base * (dark ? 0.25 : 0.85 + f * 0.15);
+    this.torch.intensity = this.torchOn ? (dark ? 26 : 10) * (0.96 + Math.random() * 0.04) : 0;
+    // ambient noises now and then
+    this.nextAmbient -= dt;
+    if (this.nextAmbient <= 0 && !this.won) {
+      this.nextAmbient = 18 + Math.random() * 30;
+      const r = Math.random();
+      if (r < 0.3) sfx('creak'); else if (r < 0.5) sfx('knock'); else if (r < 0.7) sfx('drip'); else if (r < 0.85) sfx('whisper');
+      else { this.flickerT = 0.5; sfx('buzz'); }
+    }
+    // the figure fades out
+    if (this.figureT > 0) {
+      this.figureT -= dt;
+      if (this.figureT <= 0) this.figure.visible = false;
+    }
   }
 
   // ---------- views & camera ----------
@@ -344,13 +382,12 @@ export class RoomRuntime {
       this.camT = 1;
     } else {
       this.moveCamera(v.pos, v.target, 0.45);
-      sfx('whoosh');
+      sfx('step');
     }
     this.applyFov();
     this.ui.viewChanged();
   }
 
-  private camDur = 0.45;
   private moveCamera(pos: THREE.Vector3, target: THREE.Vector3, dur: number): void {
     this.camFrom.pos.copy(this.camera.position);
     this.camFrom.target.copy(this.camTarget);
@@ -378,7 +415,6 @@ export class RoomRuntime {
   }
 
   private applyFov(): void {
-    // fit most of the wall's width (7.2 m seen from 6.4 m) and at least 3 m of height
     const v = this.currentView;
     const dist = v.parent ? 7 * v.fovScale : 6.4;
     const halfW = v.parent ? 4 * v.fovScale : 3.6;
@@ -401,7 +437,6 @@ export class RoomRuntime {
       const rec = this.findObj(h.object);
       if (!rec) return; // tapped scenery in front of anything interactive
       this.activate(rec);
-      if (rec === this.catObj) this.sparkle(h.point);
       return;
     }
   }
@@ -423,7 +458,7 @@ export class RoomRuntime {
     }
     if (rec.visible && !rec.visible(this.s.flags)) return false;
     // close-up objects: from their parent wall, the first tap zooms in
-    if (rec.views && !rec.any && !rec.views.includes(this.view)) {
+    if (rec.views && !rec.views.includes(this.view)) {
       const into = rec.views.find((v) => this.views.get(v)?.parent === this.view)
         ?? rec.views.find((v) => this.views.get(v)?.wall === this.currentView.wall);
       if (into) this.setView(into);
@@ -446,12 +481,6 @@ export class RoomRuntime {
       sfx('wrong');
       return false;
     }
-    if (rec === this.catObj && !rec.onTap) {
-      this.catApi.meow();
-      const lines = T.tapCat;
-      this.ui.say(lines[Math.floor(Math.random() * lines.length)]);
-      return true;
-    }
     if (rec.onTap) { rec.onTap(c); return true; }
     sfx('tap');
     return false;
@@ -459,20 +488,20 @@ export class RoomRuntime {
 
   /** Run one scripted walkthrough step (automated tests). */
   runAction(a: Action): void {
-    if (a.tap) {
-      const rec = this.objs.get(a.tap)!;
-      if (!rec) throw new Error(`No object ${a.tap}`);
-      if (rec.views && !rec.any && !rec.views.includes(this.view)) this.view = rec.views[0];
+    const prep = (id: string): ObjRec => {
+      const rec = this.objs.get(id);
+      if (!rec) throw new Error(`No object ${id}`);
+      if (rec.views && !rec.views.includes(this.view)) this.view = rec.views[0];
       else if (rec.zoomTo) this.view = rec.zoomTo;
-      if (!this.activate(rec)) throw new Error(`Tap on ${a.tap} did nothing`);
+      return rec;
+    };
+    if (a.tap) {
+      if (!this.activate(prep(a.tap))) throw new Error(`Tap on ${a.tap} did nothing`);
     }
     if (a.use) {
       const [item, target] = a.use;
       if (!this.has(item)) throw new Error(`Missing item ${item} for ${target}`);
-      const rec = this.objs.get(target)!;
-      if (!rec) throw new Error(`No object ${target}`);
-      if (rec.views && !rec.any && !rec.views.includes(this.view)) this.view = rec.views[0];
-      else if (rec.zoomTo) this.view = rec.zoomTo;
+      const rec = prep(target);
       this.selected = item;
       if (!this.activate(rec)) throw new Error(`Using ${item} on ${target} did nothing`);
     }
@@ -499,61 +528,33 @@ export class RoomRuntime {
       if (rec.visible) rec.node.visible = rec.visible(this.s.flags);
       if (rec.animate) rec.animate(this.s.flags, rec.node, k);
     }
-    // camera tween
     if (this.camT < 1) {
       this.camT = Math.min(1, this.camT + dt / this.camDur);
       const e = this.camT * this.camT * (3 - 2 * this.camT);
       this.camera.position.lerpVectors(this.camFrom.pos, this.camTo.pos, e);
       this.camTarget.lerpVectors(this.camFrom.target, this.camTo.target, e);
-      this.camera.lookAt(this.camTarget);
     }
-    // cat
-    if (this.cat) {
-      if (this.catMove) {
-        const m = this.catMove;
-        m.t = Math.min(1, m.t + dt / 0.8);
-        const e = m.t * m.t * (3 - 2 * m.t);
-        this.cat.root.position.lerpVectors(m.from, m.to, e);
-        this.cat.root.position.y += Math.sin(m.t * Math.PI) * 0.7;
-        this.cat.root.rotation.y = m.fromRot + angleDiff(m.fromRot, m.toRot) * e;
-        if (m.t >= 1) { this.cat.setPose(m.pose); this.catMove = null; sfx('thud'); }
-      }
-      this.cat.update(dt);
+    this.camera.lookAt(this.camTarget);
+    // slow breathing sway, plus shake after a scare
+    const sway = 0.004;
+    this.camera.rotation.z += Math.sin(this.time * 0.6) * sway;
+    if (this.shake > 0) {
+      this.shake -= dt;
+      this.camera.rotation.x += (Math.random() - 0.5) * this.shake * 0.08;
+      this.camera.rotation.y += (Math.random() - 0.5) * this.shake * 0.08;
     }
-    for (const s of [...this.sparkles]) {
-      s.t += dt;
-      s.m.position.y += dt * 0.5;
-      s.m.scale.setScalar(0.06 * (1 - s.t));
-      if (s.t >= 1) { this.root.remove(s.m); this.sparkles.splice(this.sparkles.indexOf(s), 1); }
-    }
-  }
-
-  private sparkle(p: THREE.Vector3): void {
-    for (let i = 0; i < 4; i++) {
-      const m = new THREE.Mesh(heartGeo, mat(0xff6f91, { emissive: 0xff3f6f }));
-      m.position.copy(p).add(new THREE.Vector3((Math.random() - 0.5) * 0.3, 0.1 + i * 0.08, (Math.random() - 0.5) * 0.3));
-      this.root.add(m);
-      this.sparkles.push({ m, t: -i * 0.1 });
-    }
-  }
-
-  /** Project a world position (e.g. the cat) to screen pixels for UI speech bubbles. */
-  project(p: THREE.Vector3, w: number, h: number): { x: number; y: number } {
-    const v = p.clone().project(this.camera);
-    return { x: (v.x + 1) / 2 * w, y: (1 - v.y) / 2 * h };
+    this.updateAtmosphere(dt);
   }
 
   dispose(): void {
     this.scene.traverse((o) => {
       if (o instanceof THREE.Mesh) {
         const m = o.material as THREE.MeshStandardMaterial;
-        if (m.map && !(m.map as THREE.CanvasTexture).userData?.shared) m.map.dispose();
+        if (m.map) m.map.dispose();
       }
     });
   }
 }
-
-const heartGeo = new THREE.SphereGeometry(1, 8, 6);
 
 function visibleChain(o: THREE.Object3D | null): boolean {
   while (o) {
@@ -570,12 +571,3 @@ function noHit(o: THREE.Object3D | null): boolean {
   }
   return false;
 }
-
-function angleDiff(a: number, b: number): number {
-  let d = (b - a) % (Math.PI * 2);
-  if (d > Math.PI) d -= Math.PI * 2;
-  if (d < -Math.PI) d += Math.PI * 2;
-  return d;
-}
-
-export type { Txt };
