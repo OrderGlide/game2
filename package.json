@@ -1,5 +1,5 @@
 {
-  "name": "purr-cafe",
+  "name": "cat-escape",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -8,8 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host",
     "android": "npm run build && npx cap sync android && npx cap open android",
-    "balance": "tsx scripts/balance.ts",
-    "test": "tsx scripts/test.ts"
+    
+    "test": "node scripts/walkthrough.mjs"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.2",

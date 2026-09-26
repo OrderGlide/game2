@@ -1,4 +1,4 @@
-package pl.jasior.purrcafe;
+package pl.jasior.catescape;
 
 import com.getcapacitor.BridgeActivity;
 
