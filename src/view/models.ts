@@ -5,7 +5,9 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { pbr } from './assets';
 
-export const MODELS = ['wardrobe', 'drawers', 'trunk', 'desk', 'door', 'frame'] as const;
+export const MODELS = [
+  'wardrobe', 'drawers', 'trunk', 'desk', 'door', 'frame', 'rocking', 'broken_chair', 'bookshelf', 'wall_shelf', 'candles', 'doll',
+] as const;
 export type ModelName = (typeof MODELS)[number];
 
 const loaded = new Map<ModelName, THREE.Object3D>();
@@ -18,8 +20,24 @@ function materialFor(name: string): THREE.Material {
     case 'oak_dark': return pbr('oak', [1, 1], { tint: 0x6e6058, rough: 0.95 });
     case 'iron': return pbr('rust', [1, 1], { tint: 0x9a9a9a, metal: 0.35, rough: 1 });
     case 'brass': return pbr('brass', [1, 1], { tint: 0xe0c090, metal: 0.6, rough: 0.8 });
+    case 'book_red': return book(0x6a221c);
+    case 'book_green': return book(0x1e442c);
+    case 'book_blue': return book(0x2c2e52);
+    case 'book_brown': return book(0x5a3e22);
+    case 'pages': return new THREE.MeshStandardMaterial({ color: 0xc8bc9c, roughness: 1 });
+    case 'wax': return new THREE.MeshStandardMaterial({ color: 0xe0d6bc, roughness: 0.55, emissive: 0x2a1404 });
+    case 'porcelain': return new THREE.MeshStandardMaterial({ color: 0xe4d8cc, roughness: 0.3 });
+    case 'cloth': return pbr('plaster', [2, 2], { tint: 0x7a2a3a, normal: 0.6 });
+    case 'hair': return new THREE.MeshStandardMaterial({ color: 0x241408, roughness: 0.75 });
     default: return new THREE.MeshStandardMaterial({ color: 0x070504, roughness: 1 });
   }
+}
+
+/** Leather-bound book cover: flat colour, with the plaster's cracks as worn leather. */
+function book(color: number): THREE.Material {
+  const m = new THREE.MeshStandardMaterial({ color, roughness: 0.8 });
+  m.normalMap = pbr('plaster').normalMap;
+  return m;
 }
 
 /** Load every model (once). Resolves even if some files fail — those props fall back to primitives. */
@@ -35,6 +53,7 @@ export function loadModels(): Promise<void> {
           const key = (o.material as THREE.Material).name;
           if (!mats.has(key)) mats.set(key, materialFor(key));
           o.material = mats.get(key)!;
+          o.userData.slot = key;
           o.castShadow = key !== 'shadow';
           o.receiveShadow = true;
         });

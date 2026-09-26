@@ -58,7 +58,7 @@ export function imageMat(file: string, decal = false, tint = 0xffffff): THREE.Me
       m.transparent = true;
       m.depthWrite = false;
       m.polygonOffset = true;
-      m.polygonOffsetFactor = -4;
+      m.polygonOffsetFactor = -1;
     }
     decals.set(key, m);
   }
@@ -74,6 +74,9 @@ export function imagePlane(file: string, w: number, h: number, decal = false, ti
   }
   const m = new THREE.Mesh(geo, imageMat(file, decal, tint));
   m.receiveShadow = true;
-  if (decal) m.userData.noHit = true;
+  if (decal) {
+    m.userData.noHit = true;
+    m.renderOrder = -1; // drawn before (under) scrawled clues and other see-through things, never hiding them
+  }
   return m;
 }

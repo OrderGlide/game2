@@ -42,6 +42,19 @@ stuknij przedmiot w ekwipunku, żeby go wybrać, a potem miejsce, gdzie ma zadzi
 | `src/audio.ts`, `src/music.ts` | Efekty i tło dźwiękowe generowane w WebAudio |
 | `scripts/walkthrough.mjs` | Test: bot przechodzi wszystkie 100 poziomów według wygenerowanych rozwiązań |
 
+## Grafika realistyczna (w trakcie — na razie motyw 1)
+
+Motywy z polem `pbr` w `src/gen/themes.ts` używają tekstur ze zdjęć i modeli z Blendera zamiast prymitywów:
+
+- **Tekstury**: obrazy źródłowe (wygenerowane w Gemini) leżą w `tools/textures/src/`.
+  `python3 tools/textures/process.py` (Pillow, numpy, scipy) robi z nich bezszwowe mapy PBR
+  (`*_c/_n/_r.jpg`), obrazy (`portrait.jpg`, `paper.jpg`) i decale z przezroczystością (`*.webp`) w `public/textures/`.
+- **Modele**: `python3 tools/blender/furniture.py [nazwy...]` (wymaga `pip install bpy`, Python 3.11) buduje meble
+  i eksportuje `public/models/*.glb`. Ruchome części to nazwane węzły (`doorL`, `doorR`, `drawer`, `lid`, `leaf`,
+  `rock`, `head`), materiały to tylko nazwy slotów (`oak`, `brass`, `iron`…) — gra podstawia tekstury w `src/view/models.ts`.
+- **Podgląd**: `node scripts/shot.mjs <poziom> <katalog> [w0 w1 w2 w3]` robi zrzuty ścian poziomu.
+- Koncepty motywu: `docs/concept/`.
+
 ## Testy
 
 ```bash

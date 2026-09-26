@@ -19,6 +19,9 @@ from mathutils import Matrix, Vector
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'public', 'models')
 TILE = 0.6
 COLORS = {
+    'book_red': (0.3, 0.05, 0.04, 1), 'book_green': (0.06, 0.18, 0.1, 1), 'book_blue': (0.08, 0.08, 0.2, 1),
+    'book_brown': (0.25, 0.15, 0.06, 1), 'pages': (0.8, 0.75, 0.6, 1), 'wax': (0.9, 0.86, 0.75, 1),
+    'porcelain': (0.9, 0.85, 0.8, 1), 'cloth': (0.4, 0.1, 0.15, 1), 'hair': (0.1, 0.06, 0.03, 1),
     'oak': (0.25, 0.15, 0.08, 1), 'oak_dark': (0.12, 0.07, 0.04, 1), 'brass': (0.6, 0.45, 0.2, 1),
     'iron': (0.15, 0.12, 0.1, 1), 'shadow': (0.02, 0.015, 0.01, 1),
 }
@@ -139,6 +142,48 @@ def lathe(name, profile, center, mat, parent=None, seg=20, axis='y'):
     return finish(obj, mat, 0, parent=parent, grain=2)
 
 
+def sweep(name, path, w, h, mat, parent=None):
+    """Rectangular bar (w wide in x, h thick) following a path of three.js (x, y, z) points."""
+    me = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    rings = []
+    pts = [Vector(p) for p in path]
+    for i, p in enumerate(pts):
+        t = (pts[min(i + 1, len(pts) - 1)] - pts[max(i - 1, 0)]).normalized()
+        side = Vector((1, 0, 0))
+        up = side.cross(t).normalized()
+        ring = []
+        for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+            q = p + side * (sx * w / 2) + up * (sy * h / 2)
+            ring.append(bm.verts.new(b(q)))
+        rings.append(ring)
+    for a, c in zip(rings, rings[1:]):
+        for i in range(4):
+            j = (i + 1) % 4
+            bm.faces.new((a[i], a[j], c[j], c[i]))
+    bm.faces.new(rings[0][::-1])
+    bm.faces.new(rings[-1])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(me)
+    bm.free()
+    obj = bpy.data.objects.new(name, me)
+    bpy.context.collection.objects.link(obj)
+    return finish(obj, mat, min(w, h) * 0.25, 2, parent)
+
+
+def ball(name, r, center, mat, parent=None, scale=(1, 1, 1)):
+    me = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=20, v_segments=12, radius=r)
+    for v in bm.verts:
+        v.co = Vector((v.co.x * scale[0], v.co.y * scale[2], v.co.z * scale[1])) + b(center)
+    bm.to_mesh(me)
+    bm.free()
+    obj = bpy.data.objects.new(name, me)
+    bpy.context.collection.objects.link(obj)
+    return finish(obj, mat, 0, parent=parent)
+
+
 def empty(name, at=(0, 0, 0), parent=None):
     e = bpy.data.objects.new(name, None)
     e.location = b(at)
@@ -183,7 +228,39 @@ def panel(name, w, h, center, parent, mat='oak', frame=0.07, depth=0.025, raised
     return None
 
 
+MOVING = {'doorL', 'doorR', 'drawer', 'lid', 'leaf', 'rock', 'head'}
+
+
+def merge(root):
+    """Join all meshes that move together (the static body, and each moving part) into one object each,
+    so a model costs a draw call per material instead of one per board."""
+    groups = {}
+
+    def walk(o, anchor):
+        if o.type == 'EMPTY' and o.name in MOVING:
+            anchor = o
+        if o.type == 'MESH':
+            groups.setdefault(anchor.name, (anchor, []))[1].append(o)
+        for c in list(o.children):
+            walk(c, anchor)
+
+    walk(root, root)
+    for anchor, objs in groups.values():
+        if len(objs) > 1:
+            bpy.ops.object.select_all(action='DESELECT')
+            for o in objs:
+                o.select_set(True)
+            bpy.context.view_layer.objects.active = objs[0]
+            bpy.ops.object.join()
+        joined = bpy.context.view_layer.objects.active if len(objs) > 1 else objs[0]
+        mw = joined.matrix_world.copy()
+        joined.parent = anchor
+        joined.matrix_world = mw
+        joined.name = f'{anchor.name}_mesh'
+
+
 def export(root, name):
+    merge(root)
     bpy.ops.object.select_all(action='DESELECT')
 
     def sel(o):
@@ -415,6 +492,146 @@ def frame():
     export(root, 'frame')
 
 
+def rocking():
+    """Spindle-back rocking chair; the whole chair hangs under the node 'rock', pivoting at the rockers' centre."""
+    reset()
+    root = empty('rocking')
+    R, cy, cz = 0.62, 0.62, 0.25  # rocker arc radius and centre
+    rock = empty('rock', (0, cy, cz), root)
+
+    def at(x, y, z):  # chair coords (origin at the floor, back) -> relative to the pivot
+        return (x, y - cy, z - cz)
+
+    for x in (-0.22, 0.22):
+        arc = [at(x, cy - R * math.cos(a), cz + R * math.sin(a)) for a in [i * 0.09 - 0.45 for i in range(11)]]
+        sweep(f'rocker{x}', arc, 0.035, 0.03, 'oak_dark', rock)
+        leg = [(0.02, 0), (0.017, 0.05), (0.021, 0.15), (0.016, 0.3), (0.019, 0.4)]
+        lathe(f'legf{x}', leg, at(x, 0.03, 0.44), 'oak', rock)
+        lathe(f'legb{x}', leg, at(x, 0.03, 0.07), 'oak', rock)
+        # back posts rising from the rear legs, leaning back a little
+        post = [at(x, 0.42, 0.06), at(x, 0.8, 0.02), at(x, 1.1, -0.02)]
+        sweep(f'post{x}', post, 0.035, 0.035, 'oak', rock)
+        lathe(f'finial{x}', [(0.02, 0), (0.026, 0.02), (0.012, 0.045), (0.002, 0.05)], at(x, 1.1, -0.02), 'oak', rock)
+        sweep(f'arm{x}', [at(x, 0.66, 0.04), at(x, 0.67, 0.3), at(x, 0.64, 0.5)], 0.05, 0.025, 'oak', rock)
+        lathe(f'armpost{x}', [(0.016, 0), (0.02, 0.1), (0.014, 0.22)], at(x, 0.44, 0.46), 'oak', rock)
+    cube('seat', (0.5, 0.04, 0.44), at(0, 0.44, 0.25), 'oak', rock, 0.012, 3, grain=0)
+    for z in (0.44, 0.07):
+        cube(f'stretch{z}', (0.44, 0.025, 0.025), at(0, 0.2, z), 'oak_dark', rock, grain=0)
+    sweep('toprail', [at(-0.24, 1.04, -0.01), at(0, 1.07, -0.03), at(0.24, 1.04, -0.01)], 0.02, 0.08, 'oak', rock)
+    sweep('midrail', [at(-0.23, 0.6, 0.045), at(0.23, 0.6, 0.045)], 0.02, 0.03, 'oak', rock)
+    for i in range(5):
+        x = -0.14 + i * 0.07
+        sweep(f'spindle{i}', [at(x, 0.62, 0.043), at(x, 1.0, -0.005)], 0.018, 0.018, 'oak_dark', rock)
+    export(root, 'rocking')
+
+
+def broken_chair():
+    """A chair that has collapsed: seat tilted onto the floor, back snapped off, one leg lying beside it."""
+    reset()
+    root = empty('broken_chair')
+    seat = empty('seat', (0, 0.2, 0.3), root)
+    seat.rotation_euler = (0, 0.35, 0)  # blender y = -three z: tilts the seat sideways
+    cube('seat_board', (0.44, 0.04, 0.42), (0, 0.1, 0), 'oak', seat, 0.012, 3, grain=0)
+    for x in (-0.19, 0.19):
+        lathe(f'leg{x}', [(0.02, 0), (0.017, 0.1), (0.02, 0.2), (0.016, 0.3)], (x, -0.2, 0.17), 'oak_dark', seat)
+    lathe('leg_snap', [(0.02, 0), (0.017, 0.08), (0.012, 0.11)], (-0.19, -0.02, -0.17), 'oak_dark', seat)
+    back = empty('back', (0.12, 0.03, 0.62), root)
+    back.rotation_euler = (math.radians(-80), 0, 0.3)
+    for x in (-0.2, 0.2):
+        cube(f'bpost{x}', (0.035, 0.55, 0.035), (x, 0.275, 0), 'oak', back, grain=1)
+    for y in (0.2, 0.35, 0.5):
+        cube(f'slat{y}', (0.4, 0.06, 0.02), (0, y, 0), 'oak', back, grain=0)
+    loose = empty('loose', (-0.35, 0.02, 0.55), root)
+    loose.rotation_euler = (0, 0, math.radians(90))
+    lathe('loose_leg', [(0.02, 0), (0.017, 0.1), (0.02, 0.2), (0.012, 0.33)], (0, 0, 0), 'oak_dark', loose)
+    export(root, 'broken_chair')
+
+
+def bookshelf():
+    """Bookcase 1.0 x 1.8 x 0.32 with four shelves of leaning, worn books."""
+    reset()
+    root = empty('bookshelf')
+    W, H, D = 1.0, 1.8, 0.32
+    cube('back', (W - 0.04, H - 0.06, 0.015), (0, H / 2, 0.0075), 'oak_dark', root)
+    for s in (-1, 1):
+        cube(f'side{s}', (0.03, H, D), (s * (W / 2 - 0.015), H / 2, D / 2), 'oak', root, grain=1)
+    cube('top', (W + 0.04, 0.035, D + 0.03), (0, H + 0.0175, D / 2 + 0.01), 'oak', root, 0.01, 3, grain=0)
+    cube('kick', (W - 0.06, 0.06, 0.02), (0, 0.03, D - 0.02), 'oak_dark', root, grain=0)
+    colors = ['book_red', 'book_green', 'book_blue', 'book_brown']
+    for sh in range(4):
+        y = 0.06 + sh * 0.44
+        cube(f'shelf{sh}', (W - 0.06, 0.025, D - 0.02), (0, y, D / 2), 'oak', root, 0.006, grain=0)
+        x = -W / 2 + 0.04
+        while x < W / 2 - 0.1:
+            if rnd.random() < 0.1:
+                x += 0.1
+                continue
+            bw, bh, bd = 0.03 + rnd.random() * 0.035, 0.2 + rnd.random() * 0.13, 0.17 + rnd.random() * 0.06
+            lean = rnd.random() < 0.12
+            bk = empty(f'book{sh}_{x:.2f}', (x + bw / 2, y + 0.0125, D - 0.03 - bd / 2), root)
+            if lean:
+                bk.rotation_euler = (0, -0.25, 0)
+            c = colors[rnd.randrange(4)]
+            cube(f'cover{sh}_{x:.2f}', (bw, bh, bd), (0, bh / 2, 0), c, bk, 0.004, 1, grain=1)
+            cube(f'pages{sh}_{x:.2f}', (bw - 0.006, bh - 0.012, 0.004), (0, bh / 2, bd / 2 - 0.004), 'pages', bk, 0, grain=1)
+            cube(f'band{sh}_{x:.2f}', (bw + 0.002, 0.012, bd + 0.002), (0, bh * 0.82, 0), 'brass', bk, 0.002)
+            x += bw + 0.004 + (0.03 if lean else 0)
+    export(root, 'bookshelf')
+
+
+def wall_shelf():
+    """Wall shelf board 0.8 x 0.22 on two carved brackets; the top of the board is at y = 0.04."""
+    reset()
+    root = empty('wall_shelf')
+    cube('board', (0.82, 0.035, 0.22), (0, 0.022, 0.11), 'oak', root, 0.01, 3, grain=0)
+    for x in (-0.33, 0.33):
+        prof = [(x, -0.16, 0.012), (x, -0.08, 0.05), (x, -0.02, 0.12), (x, 0.003, 0.19)]
+        sweep(f'bracket{x}', prof, 0.03, 0.035, 'oak_dark', root)
+        cube(f'bplate{x}', (0.035, 0.2, 0.02), (x, -0.09, 0.01), 'oak_dark', root, 0.005, grain=1)
+    export(root, 'wall_shelf')
+
+
+def candles():
+    """Three melted candles on a brass dish; flames are added by the game (named empties 'wick*')."""
+    reset()
+    root = empty('candles')
+    lathe('dish', [(0.001, 0), (0.1, 0), (0.12, 0.012), (0.115, 0.018), (0.09, 0.01), (0.001, 0.01)], (0, 0, 0.14), 'brass', root, 24)
+    for i, (x, z, h) in enumerate(((-0.045, 0.13, 0.2), (0.035, 0.12, 0.14), (0.0, 0.18, 0.09))):
+        prof = [(0.03, 0), (0.028, 0.01), (0.022, 0.02), (0.021, h - 0.02), (0.024, h - 0.01), (0.02, h), (0.006, h + 0.002), (0.001, h + 0.004)]
+        lathe(f'candle{i}', prof, (x, 0.01, z), 'wax', root, 16)
+        for k in range(3):  # wax drips
+            a = rnd.random() * 6.28
+            ball(f'drip{i}{k}', 0.008, (x + math.cos(a) * 0.021, 0.01 + h * (0.4 + rnd.random() * 0.5), z + math.sin(a) * 0.021), 'wax', root, (1, 3, 1))
+        empty(f'wick{i}', (x, 0.01 + h + 0.02, z), root)
+    export(root, 'candles')
+
+
+def doll():
+    """Porcelain doll sitting on the floor, 0.4 tall; the head is a node named 'head' so it can turn."""
+    reset()
+    root = empty('doll')
+    dress = [(0.001, 0.0), (0.13, 0.0), (0.14, 0.02), (0.12, 0.05), (0.09, 0.12), (0.06, 0.2), (0.045, 0.25), (0.04, 0.28), (0.001, 0.29)]
+    lathe('dress', dress, (0, 0.01, 0), 'cloth', root, 24)
+    lathe('collar', [(0.05, 0), (0.06, 0.01), (0.03, 0.02)], (0, 0.27, 0), 'pages', root, 18)
+    for s in (-1, 1):
+        sweep(f'arm{s}', [(s * 0.05, 0.25, 0.0), (s * 0.08, 0.17, 0.04), (s * 0.06, 0.1, 0.09)], 0.035, 0.035, 'cloth', root)
+        ball(f'hand{s}', 0.018, (s * 0.055, 0.09, 0.1), 'porcelain', root)
+        sweep(f'leg{s}', [(s * 0.04, 0.03, 0.05), (s * 0.045, 0.03, 0.2)], 0.035, 0.035, 'pages', root)
+        ball(f'shoe{s}', 0.024, (s * 0.045, 0.03, 0.22), 'hair', root, (1, 0.8, 1.3))
+    head = empty('head', (0, 0.32, 0), root)
+    ball('skull', 0.075, (0, 0.02, 0), 'porcelain', head, (1, 1.08, 1))
+    ball('hair', 0.08, (0, 0.045, -0.012), 'hair', head, (1.03, 0.95, 1.03))
+    for s in (-1, 1):
+        ball(f'eye{s}', 0.014, (s * 0.027, 0.02, 0.066), 'shadow', head, (1, 1.1, 0.5))
+        ball(f'curl{s}', 0.03, (s * 0.07, -0.02, -0.01), 'hair', head, (0.8, 1.6, 0.8))
+    ball('lips', 0.008, (0, -0.02, 0.07), 'book_red', head, (1.6, 0.6, 0.6))
+    export(root, 'doll')
+
+
 if __name__ == '__main__':
-    for f in (wardrobe, drawers, trunk, desk, door, frame):
+    import sys
+    only = sys.argv[1:]
+    for f in (wardrobe, drawers, trunk, desk, door, frame, rocking, broken_chair, bookshelf, wall_shelf, candles, doll):
+        if only and f.__name__ not in only:
+            continue
         f()

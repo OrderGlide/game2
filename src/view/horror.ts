@@ -551,7 +551,26 @@ export function notePaper(torn = false): THREE.Mesh {
 
 // ---------- decoration ----------
 
+/** A candle flame: a warm glowing teardrop. */
+function flame(): THREE.Mesh {
+  const f = new THREE.Mesh(new THREE.SphereGeometry(0.012, 10, 8), mat(0xffc060, { emissive: 0xff9a20 }));
+  f.scale.set(1, 2.2, 1);
+  f.name = 'flame';
+  return f;
+}
+
 export function doll(rnd: () => number): THREE.Group {
+  const real = model('doll');
+  if (real) {
+    const dress = [0x7a2a3a, 0x3a4a6a, 0xb8b0a0, 0x4a3a2a][Math.floor(rnd() * 4)];
+    real.traverse((o) => {
+      if (o instanceof THREE.Mesh && o.userData.slot === 'cloth') {
+        o.material = (o.material as THREE.MeshStandardMaterial).clone();
+        (o.material as THREE.MeshStandardMaterial).color.setHex(dress);
+      }
+    });
+    return real;
+  }
   const dress = [0x7a2a3a, 0x3a4a6a, 0xd8d0c0, 0x4a3a2a][Math.floor(rnd() * 4)];
   const body = cyl(0.06, 0.12, 0.22, dress, 0, 0.02, 0);
   const head = named(new THREE.Group(), 'head');
@@ -569,6 +588,8 @@ export function doll(rnd: () => number): THREE.Group {
 }
 
 export function rockingChair(): THREE.Group {
+  const real = model('rocking');
+  if (real) return real;
   const c = named(new THREE.Group(), 'rock');
   const w = 0x4a3222;
   c.add(box(0.5, 0.05, 0.45, w, 0, 0.42, 0.25), box(0.5, 0.65, 0.04, w, 0, 0.47, 0.03));
@@ -612,6 +633,8 @@ export function barrel(color = 0x5a4a38): THREE.Group {
 }
 
 export function brokenChair(): THREE.Group {
+  const real = model('broken_chair');
+  if (real) return real;
   const w = 0x4a3222;
   const seat = box(0.45, 0.05, 0.45, w, 0, 0.3, 0.25);
   seat.rotation.z = 0.35;
@@ -641,6 +664,14 @@ export function bucket(): THREE.Group {
 }
 
 export function candles(n = 3): THREE.Group {
+  const real = n >= 3 ? model('candles') : null;
+  if (real) {
+    real.traverse((o) => { if (o.name.startsWith('wick')) o.add(flame()); });
+    const l = new THREE.PointLight(0xff9a40, 1.8, 2.8, 2);
+    l.position.set(0, 0.35, 0.2);
+    real.add(l);
+    return real;
+  }
   const g = new THREE.Group();
   for (let i = 0; i < n; i++) {
     const h = 0.12 + (i % 3) * 0.08;
@@ -730,6 +761,8 @@ export function tombstone(rnd: () => number): THREE.Group {
 }
 
 export function bookshelfDecor(rnd: () => number): THREE.Group {
+  const real = model('bookshelf');
+  if (real) return real;
   const g = group(hollow(1.0, 1.8, 0.32, OLDWOOD));
   for (let s = 0; s < 4; s++) {
     g.add(box(0.94, 0.03, 0.3, shade(OLDWOOD, 0.9), 0, 0.05 + s * 0.44, 0.16));
@@ -801,8 +834,9 @@ export function heavyDoor(color: number): THREE.Group {
 
 /** A small wall shelf with jars, a skull-ish lump, books. */
 export function wallShelf(rnd: () => number): THREE.Group {
-  const g = group(box(0.8, 0.04, 0.22, OLDWOOD, 0, 0, 0.11));
-  for (const x of [-0.35, 0.35]) g.add(box(0.03, 0.12, 0.2, shade(OLDWOOD, 0.8), x, -0.12, 0.1));
+  const real = model('wall_shelf');
+  const g = real ?? group(box(0.8, 0.04, 0.22, OLDWOOD, 0, 0, 0.11));
+  if (!real) for (const x of [-0.35, 0.35]) g.add(box(0.03, 0.12, 0.2, shade(OLDWOOD, 0.8), x, -0.12, 0.1));
   let x = -0.32;
   while (x < 0.3) {
     const r = rnd();
