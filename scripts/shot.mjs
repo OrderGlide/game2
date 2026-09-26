@@ -13,9 +13,10 @@ await server.listen();
 const browser = await chromium.launch({ executablePath, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 600 } });
 page.on('pageerror', (e) => console.log('pageerror', e.message));
+page.on('console', (m) => { if (m.type() !== 'log' && m.type() !== 'debug') console.log(m.type(), m.text()); });
 await page.goto('http://127.0.0.1:5198/?test');
 await page.waitForFunction(() => 'walkthrough' in window);
-await page.evaluate((n) => { window.game.profile.current = null; window.game.startLevel(n); }, Number(level));
+await page.evaluate((n) => { window.game.profile.current = null; return window.game.startLevel(n); }, Number(level));
 await page.waitForTimeout(1500);
 await page.evaluate(() => { for (let k = 0; k < 10 && document.querySelector('.modal-bg'); k++) window.game.hud.closeTop(); });
 for (const v of views.length ? views : ['w0', 'w1', 'w2', 'w3']) {

@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import type { Sfx } from '../audio';
 import { ball, box, canvasTex, cyl, drawGrime, drawScrawl, group, hex, hinge, mat, mulberry32, picture, shade, text } from './kit';
 import { hollow, named, slide, swing } from './furniture';
+import { model } from './models';
 
 const RUST = 0x6b4a3a;
 const IRON = 0x4a4f55;
@@ -36,8 +37,9 @@ export interface Container {
 // ---------- containers ----------
 
 export function cabinet(color = OLDWOOD): Container {
-  const g = group(hollow(1.1, 1.9, 0.5, color), box(1.02, 0.03, 0.46, shade(color, 0.8), 0, 0.95, 0.25));
-  for (const s of [-1, 1]) {
+  const real = model('wardrobe');
+  const g = real ?? group(hollow(1.1, 1.9, 0.5, color), box(1.02, 0.03, 0.46, shade(color, 0.8), 0, 0.95, 0.25));
+  if (!real) for (const s of [-1, 1]) {
     const h = hinge(s * 0.55, 0.03, 0.51);
     h.add(box(0.54, 1.84, 0.035, shade(color, 1.08), -s * 0.27, 0, 0.017), ball(0.025, 0x8a7a50, -s * 0.47, 0.95, 0.05));
     h.name = s < 0 ? 'doorL' : 'doorR';
@@ -68,6 +70,15 @@ export function locker(color = 0x4f6b62): Container {
 }
 
 export function drawers(color = OLDWOOD): Container {
+  const real = model('drawers');
+  if (real) {
+    return {
+      node: real, w: 1.0, mount: 'floor', wallY: 0,
+      inside: { u: 0, y: 0.7, out: 0.6 }, zoom: { y: 0.8, out: 0.6, dist: 1.2, look: 0.6 }, lockAt: { u: 0, y: 0.74, out: 0.53 },
+      open: (n, o, k) => slide(n, 'drawer', o ? 0.36 : 0, k),
+      sound: 'drawer', name: { pl: 'komoda', plAcc: 'komodę', en: 'chest of drawers' },
+    };
+  }
   const g = group(box(1.0, 0.9, 0.5, color, 0, 0, 0.25), box(1.04, 0.04, 0.54, shade(color, 0.8), 0, 0.9, 0.27));
   for (let i = 0; i < 2; i++) g.add(box(0.94, 0.24, 0.02, shade(color, 1.1), 0, 0.08 + i * 0.28, 0.505), ball(0.022, 0x8a7a50, 0, 0.2 + i * 0.28, 0.52));
   const dr = named(group(box(0.94, 0.2, 0.46, shade(color, 1.12), 0, 0.64, 0.26), box(0.9, 0.01, 0.42, shade(color, 0.6), 0, 0.84, 0.26), ball(0.022, 0x8a7a50, 0, 0.74, 0.5)), 'drawer');
@@ -81,6 +92,15 @@ export function drawers(color = OLDWOOD): Container {
 }
 
 export function desk(color = OLDWOOD): Container {
+  const real = model('desk');
+  if (real) {
+    return {
+      node: real, w: 1.1, mount: 'floor', wallY: 0,
+      inside: { u: 0.27, y: 0.58, out: 0.63 }, zoom: { y: 0.72, out: 0.6, dist: 1.3, look: 0.6 }, lockAt: { u: 0.27, y: 0.66, out: 0.66 },
+      open: (n, o, k) => slide(n, 'drawer', o ? 0.34 : 0, k),
+      sound: 'drawer', name: { pl: 'biurko', plAcc: 'biurko', en: 'desk' },
+    };
+  }
   const g = group(box(1.1, 0.06, 0.65, color, 0, 0.74, 0.33));
   for (const x of [-0.5, 0.5]) g.add(box(0.06, 0.74, 0.06, shade(color, 0.8), x, 0, 0.05), box(0.06, 0.74, 0.06, shade(color, 0.8), x, 0, 0.6));
   g.add(box(0.46, 0.2, 0.6, shade(color, 0.9), 0.27, 0.54, 0.32));
@@ -97,6 +117,15 @@ export function desk(color = OLDWOOD): Container {
 }
 
 export function trunk(color = 0x5c3a28): Container {
+  const real = model('trunk');
+  if (real) {
+    return {
+      node: real, w: 0.9, mount: 'floor', wallY: 0,
+      inside: { u: 0, y: 0.045, out: 0.25 }, zoom: { y: 0.3, out: 0.3, dist: 1.3, look: 0.9 }, lockAt: { u: 0, y: 0.36, out: 0.53 },
+      open: (n, o, k) => swing(n, 'lid', o ? -1.7 : 0, k, 'x'),
+      sound: 'creak', name: { pl: 'kufer', plAcc: 'kufer', en: 'trunk' },
+    };
+  }
   const g = group(box(0.9, 0.06, 0.5, color, 0, 0, 0.25), box(0.9, 0.48, 0.05, color, 0, 0, 0.025), box(0.9, 0.48, 0.05, color, 0, 0, 0.475));
   g.add(box(0.05, 0.48, 0.5, color, -0.425, 0, 0.25), box(0.05, 0.48, 0.5, color, 0.425, 0, 0.25), box(0.8, 0.01, 0.4, 0x2a1a12, 0, 0.061, 0.25));
   for (const x of [-0.3, 0.3]) g.add(box(0.06, 0.5, 0.52, IRON, x, 0, 0.25));
@@ -727,6 +756,8 @@ export function shadowFigure(): THREE.Group {
 }
 
 export function heavyDoor(color: number): THREE.Group {
+  const real = model('door');
+  if (real) return real;
   const g = new THREE.Group();
   const frame = 0x2a2420;
   g.add(box(0.14, 2.45, 0.14, frame, -0.64, 0, 0.02), box(0.14, 2.45, 0.14, frame, 0.64, 0, 0.02), box(1.42, 0.14, 0.14, frame, 0, 2.32, 0.02));

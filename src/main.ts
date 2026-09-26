@@ -1,6 +1,7 @@
 import './ui/style.css';
 import * as THREE from 'three';
 import { RoomRuntime } from './engine/room';
+import { loadModels, useModels } from './view/models';
 import { generateLevel, LEVELS } from './gen/level';
 import { themeFor } from './gen/themes';
 import { Hud } from './ui/hud';
@@ -49,7 +50,7 @@ function applySettings(s: Settings): void {
   const high = s.quality === 'high' || (s.quality === 'auto' && !lowEnd());
   shadows = s.quality === 'high' || (s.quality === 'auto' && !lowEnd());
   renderer.shadowMap.enabled = shadows;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, high ? 2 : 1.25));
   resize();
 }
@@ -141,8 +142,12 @@ const hud = new Hud({
   },
 });
 
-function startLevel(n: number): void {
+const modelsReady = loadModels();
+
+async function startLevel(n: number): Promise<void> {
   if (n < 1 || n > LEVELS) return;
+  await modelsReady;
+  useModels(!!themeFor(n).pbr); // the generator already builds props while laying out the room
   const def = generateLevel(n);
   rt?.dispose();
   const saved = profile.current && profile.current.id === def.id ? profile.current : null;
@@ -299,7 +304,7 @@ if (import.meta.env.DEV || new URLSearchParams(location.search).has('test')) {
     game: { profile, get rt() { return rt; }, hud, startLevel, toMenu, levels: LEVELS, generateLevel },
     async walkthrough(n: number): Promise<string> {
       profile.current = null;
-      startLevel(n);
+      await startLevel(n);
       await wait(20);
       const room = rt!;
       for (const a of room.def.solution) {

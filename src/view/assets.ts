@@ -2,6 +2,7 @@
 // Textures load in the background and appear as soon as they arrive, so building a room stays synchronous.
 import * as THREE from 'three';
 
+THREE.Cache.enabled = true; // several textures share one image file (different repeats)
 const loader = new THREE.TextureLoader();
 const images = new Map<string, THREE.Texture>();
 const mats = new Map<string, THREE.MeshStandardMaterial>();
@@ -13,14 +14,9 @@ export function texture(file: string, color: boolean, repeat: [number, number] =
   const key = `${file}|${repeat}`;
   let t = images.get(key);
   if (!t) {
-    const base = images.get(file) ?? loader.load(url(file));
-    base.colorSpace = color ? THREE.SRGBColorSpace : THREE.NoColorSpace;
-    images.set(file, base);
-    t = base;
-    if (repeat[0] !== 1 || repeat[1] !== 1) {
-      t = base.clone();
-      t.repeat.set(repeat[0], repeat[1]);
-    }
+    t = loader.load(url(file));
+    t.colorSpace = color ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+    t.repeat.set(repeat[0], repeat[1]);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = 4;
     images.set(key, t);
