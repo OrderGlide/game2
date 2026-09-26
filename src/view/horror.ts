@@ -5,7 +5,8 @@ import * as THREE from 'three';
 import type { Sfx } from '../audio';
 import { ball, box, canvasTex, cyl, drawGrime, drawScrawl, group, hex, hinge, mat, mulberry32, picture, shade, text } from './kit';
 import { hollow, named, slide, swing } from './furniture';
-import { model } from './models';
+import { model, realistic } from './models';
+import { imagePlane } from './assets';
 
 const RUST = 0x6b4a3a;
 const IRON = 0x4a4f55;
@@ -372,6 +373,16 @@ export function symbolPainting(symbols: string[], colors?: string[]): THREE.Grou
 }
 
 export function portrait(rnd: () => number): THREE.Group {
+  const real = model('frame');
+  if (real) {
+    // the same sitter, mirrored and a little darker or lighter, so a row of portraits doesn't look copy-pasted
+    const tone = 0.75 + rnd() * 0.3;
+    const c = new THREE.Color(tone, tone * (0.95 + rnd() * 0.05), tone * (0.88 + rnd() * 0.1)).getHex();
+    const p = imagePlane('portrait.jpg', 0.5, 0.68, false, c, rnd() < 0.5);
+    p.position.set(0, 0.34, 0.022);
+    real.add(p);
+    return real;
+  }
   const g = group(box(0.62, 0.8, 0.05, 0x3a2410, 0, -0.06, 0));
   const hue = Math.floor(rnd() * 360);
   const p = picture(0.5, 0.68, (c, W, H) => {
@@ -526,6 +537,13 @@ export function oldKey(color = 0x8a7a50): THREE.Group {
 }
 
 export function notePaper(torn = false): THREE.Mesh {
+  if (realistic()) {
+    const m = imagePlane('paper.jpg', torn ? 0.11 : 0.19, 0.24);
+    m.rotation.set(-Math.PI / 2, 0, 0.3);
+    m.position.y = 0.003;
+    m.castShadow = false;
+    return m;
+  }
   const m = box(torn ? 0.1 : 0.18, 0.004, 0.24, PAPER);
   m.rotation.y = 0.3;
   return m;
@@ -656,6 +674,11 @@ export function cobweb(size = 0.9): THREE.Mesh {
 }
 
 export function handprint(rnd: () => number, color = '#6a0606'): THREE.Mesh {
+  if (realistic() && color === '#6a0606') {
+    const h = imagePlane('blood_hand.webp', 0.24, 0.26, true);
+    h.rotation.z = (rnd() - 0.5) * 0.8;
+    return h;
+  }
   const p = picture(0.3, 0.36, (c, W, H) => {
     c.clearRect(0, 0, W, H);
     c.fillStyle = color;

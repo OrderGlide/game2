@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { pbr } from './assets';
 
-export const MODELS = ['wardrobe', 'drawers', 'trunk', 'desk', 'door'] as const;
+export const MODELS = ['wardrobe', 'drawers', 'trunk', 'desk', 'door', 'frame'] as const;
 export type ModelName = (typeof MODELS)[number];
 
 const loaded = new Map<ModelName, THREE.Object3D>();
@@ -17,7 +17,7 @@ function materialFor(name: string): THREE.Material {
     case 'oak': return pbr('oak', [1, 1], { tint: 0xb8a898, rough: 0.9 });
     case 'oak_dark': return pbr('oak', [1, 1], { tint: 0x6e6058, rough: 0.95 });
     case 'iron': return pbr('rust', [1, 1], { tint: 0x9a9a9a, metal: 0.35, rough: 1 });
-    case 'brass': return new THREE.MeshStandardMaterial({ color: 0x9a7438, metalness: 0.55, roughness: 0.4 });
+    case 'brass': return pbr('brass', [1, 1], { tint: 0xe0c090, metal: 0.6, rough: 0.8 });
     default: return new THREE.MeshStandardMaterial({ color: 0x070504, roughness: 1 });
   }
 }
@@ -49,6 +49,9 @@ export function loadModels(): Promise<void> {
 
 /** Use the realistic models for the room being built (set before building each room). */
 export function useModels(on: boolean): void { enabled = on; }
+
+/** True while building a room with realistic models and decals. */
+export function realistic(): boolean { return enabled; }
 
 /** A fresh copy of a model, or null when models are off for this room or not loaded. */
 export function model(name: ModelName): THREE.Group | null {

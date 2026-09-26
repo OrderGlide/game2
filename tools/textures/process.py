@@ -20,8 +20,7 @@ TILES = {
     'brass': (True, True, 0.25, 1.5, (0.3, 0.7)),
 }
 # one-off images (no tiling): name -> size
-PICTURES = {'paper': 512, 'portrait': 512}
-DECALS = {'blood': 512, 'peel': 512}
+PICTURES = {'paper': (512, (70, 60, 960, 950)), 'portrait': (512, None)}  # name -> (size, crop inside the paper's torn edge)
 
 
 def load(name):
@@ -113,19 +112,57 @@ for name, (sx, sy, band, strength, (r0, r1)) in TILES.items():
     rough = r1 - (r1 - r0) * l
     save(np.stack([rough] * 3, -1), f'{name}_r.jpg', q=80, size=512)
 
-for name, size in PICTURES.items():
+for name, (size, crop) in PICTURES.items():
     img = load(name)
     if img is None:
         print(f'skip {name} (no source)')
         continue
+    if crop:
+        img = img.resize((1024, 1024), Image.LANCZOS).crop(crop)
     save(np.asarray(img, dtype=np.float32) / 255, f'{name}.jpg', size=size)
 
-for name, size in DECALS.items():
-    img = load(name)
+def cutout(a):
+    """Alpha for an object photographed on white: near-white regions connected to the border are background."""
+    from scipy import ndimage
+    white = a.min(-1) > 0.9
+    lab, _ = ndimage.label(white)
+    border = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
+    bg = np.isin(lab, list(border))
+    alpha = 1 - ndimage.gaussian_filter(bg.astype(np.float32), 1.2)
+    return np.clip((alpha - 0.1) / 0.8, 0, 1)
+
+
+def ink(a):
+    """Alpha for stains on white: the further from white, the more opaque (keeps thin smears translucent).
+    Only the biggest blot is kept, so bits of neighbouring shapes that fall inside the crop disappear."""
+    from scipy import ndimage
+    alpha = np.clip((1 - a.min(-1) - 0.06) * 3.0, 0, 1)
+    lab, n = ndimage.label(ndimage.binary_dilation(alpha > 0.05, iterations=4))
+    if n > 1:
+        sizes = ndimage.sum(np.ones_like(alpha), lab, range(1, n + 1))
+        alpha *= lab == (1 + int(np.argmax(sizes)))
+    return alpha
+
+
+# name: (source, crop box in the 1024 source or None, alpha method, output size)
+DECALS = {
+    'peel': ('peel', None, cutout, 512),
+    'blood_hand': ('blood', (50, 80, 610, 700), ink, 256),
+    'blood_smear': ('blood', (510, 420, 990, 700), ink, 256),
+}
+for name, (src, crop, alpha_of, size) in DECALS.items():
+    img = load(src)
     if img is None:
         print(f'skip {name} (no source)')
         continue
-    a = np.asarray(img.resize((size, size), Image.LANCZOS), dtype=np.float32) / 255
-    # the background is (near) white: distance from white becomes opacity
-    alpha = np.clip((1 - a.min(-1) - 0.06) * 3.0, 0, 1)
-    save(np.concatenate([a, alpha[..., None]], -1), f'{name}.png', mode='RGBA')
+    img = img.resize((1024, 1024), Image.LANCZOS)
+    if crop:
+        img = img.crop(crop)
+    w, h = img.size
+    k = size / max(w, h)
+    a = np.asarray(img.resize((max(1, round(w * k)), max(1, round(h * k))), Image.LANCZOS), dtype=np.float32) / 255
+    rgba = np.concatenate([a, alpha_of(a)[..., None]], -1)
+    out = Image.fromarray(np.clip(rgba * 255, 0, 255).astype(np.uint8), 'RGBA')
+    path = os.path.join(OUT, f'{name}.webp')
+    out.save(path, quality=85, method=6)
+    print(f'{name}.webp: {os.path.getsize(path) // 1024} KB')

@@ -143,6 +143,8 @@ const hud = new Hud({
 });
 
 const modelsReady = loadModels();
+// aged paper behind every note (a CSS variable, because the public folder's URL depends on the base path)
+document.documentElement.style.setProperty('--paper', `url(${import.meta.env.BASE_URL}textures/paper.jpg)`);
 
 async function startLevel(n: number): Promise<void> {
   if (n < 1 || n > LEVELS) return;

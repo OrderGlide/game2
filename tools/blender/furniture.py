@@ -386,6 +386,35 @@ def door():
     export(root, 'door')
 
 
+def frame():
+    """Gilded picture frame 0.62 x 0.8 (opening 0.48 x 0.66) centred at y = 0.34, back at z = 0; the game puts
+    the painting at z = 0.022 behind the lip. Built by sweeping a moulding profile around the rectangle."""
+    reset()
+    root = empty('frame')
+    W, H, cy = 0.62, 0.8, 0.34
+    # (inset from the outer edge, z) from the back outer corner over the moulding to the inner lip
+    prof = [(0, 0), (0, 0.022), (0.006, 0.03), (0.014, 0.034), (0.022, 0.045), (0.03, 0.05), (0.04, 0.047),
+            (0.046, 0.038), (0.052, 0.036), (0.058, 0.03), (0.064, 0.026), (0.07, 0.02), (0.07, 0.012), (0.065, 0.012)]
+    me = bpy.data.meshes.new('frame_moulding')
+    bm = bmesh.new()
+    loops = []
+    for d, z in prof:
+        hw, hh = W / 2 - d, H / 2 - d
+        loops.append([bm.verts.new(b((x, cy + y, z))) for x, y in ((-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh))])
+    for a, c in zip(loops, loops[1:]):
+        for i in range(4):
+            j = (i + 1) % 4
+            bm.faces.new((a[i], a[j], c[j], c[i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(me)
+    bm.free()
+    obj = bpy.data.objects.new('frame_moulding', me)
+    bpy.context.collection.objects.link(obj)
+    finish(obj, 'brass', 0, parent=root)
+    cube('backing', (W - 0.1, H - 0.1, 0.01), (0, cy, 0.008), 'oak_dark', root, 0)
+    export(root, 'frame')
+
+
 if __name__ == '__main__':
-    for f in (wardrobe, drawers, trunk, desk, door):
+    for f in (wardrobe, drawers, trunk, desk, door, frame):
         f()

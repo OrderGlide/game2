@@ -144,6 +144,8 @@ button:focus-visible { outline: 2px solid var(--blood2); outline-offset: 2px; }
   margin: 0 auto; max-width: 440px; padding: 18px 22px; font-size: 19px; line-height: 1.55; white-space: pre-wrap; font-family: var(--type);
   background: #d9ceb0; color: #2a1f16; border-radius: 2px; box-shadow: 0 4px 20px rgba(0,0,0,0.6);
   background-image: radial-gradient(circle at 20% 30%, rgba(90,60,30,0.25), transparent 40%), radial-gradient(circle at 80% 80%, rgba(90,60,30,0.3), transparent 45%);
+  background-image: var(--paper, none), radial-gradient(circle at 20% 30%, rgba(90,60,30,0.2), transparent 40%);
+  background-size: cover;
 }
 .doc.typed { background-color: #cfc6b0; }
 .doc.blood { background: #1a0c0b; color: #c62a22; font-family: var(--scary); font-size: 28px; letter-spacing: 0.08em; }

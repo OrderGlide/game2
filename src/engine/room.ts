@@ -6,7 +6,7 @@ import { sfx, vibrate, type Sfx } from '../audio';
 import { T, tx, type Txt } from '../i18n';
 import { canvasTex, drawGrime, drawPattern, mat, box, shade, mulberry32 } from '../view/kit';
 import { hangingBulb, shadowFigure } from '../view/horror';
-import { pbr } from '../view/assets';
+import { imagePlane, pbr } from '../view/assets';
 import type { Action, Builder, Ctx, DocDef, Flags, Handler, LockDef, ObjHandle, Place, RoomDef, RoomTheme, ScareKind } from './types';
 
 export const HALF = 4;
@@ -189,6 +189,7 @@ export class RoomRuntime {
     const plane = (w: number, h: number, m: THREE.Material) => {
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), m);
       mesh.receiveShadow = true;
+      if (m.transparent) mesh.userData.noHit = true; // dirt layers never block taps
       return mesh;
     };
     const flat = (o: THREE.Object3D, y: number, up: boolean) => {
@@ -214,6 +215,20 @@ export class RoomRuntime {
       const crown = box(S, 0.08, 0.05, trim);
       crown.castShadow = false;
       put(crown, 0.025, HEIGHT - 0.08);
+      // wallpaper torn off down to the plaster, and old smears of blood
+      for (let i = Math.floor(rnd() * 2.2 * th.grime + 0.6); i > 0; i--) {
+        const size = 0.45 + rnd() * 0.5;
+        const d = imagePlane('peel.webp', size, size * 1.05, true, 0x9a9088);
+        d.rotation.z = (rnd() - 0.5) * 0.5;
+        put(d, 0.004 + rnd() * 0.001, 0.4 + size / 2 + rnd() * (HEIGHT - 1.1 - size));
+        d.position.addScaledVector(RIGHT[w], (rnd() - 0.5) * 6.5);
+      }
+      if (rnd() < th.grime * 0.8) {
+        const d = imagePlane('blood_smear.webp', 0.6, 0.35, true);
+        d.rotation.z = (rnd() - 0.5) * 1.2;
+        put(d, 0.006, 0.6 + rnd() * 1.4);
+        d.position.addScaledVector(RIGHT[w], (rnd() - 0.5) * 6);
+      }
     }
   }
 

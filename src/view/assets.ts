@@ -45,3 +45,35 @@ export function pbr(name: string, repeat: [number, number] = [1, 1], o: PbrOpts 
   }
   return m;
 }
+
+const decals = new Map<string, THREE.MeshStandardMaterial>();
+
+/** Flat image material (a painting, paper, or a transparent decal like blood). */
+export function imageMat(file: string, decal = false, tint = 0xffffff): THREE.MeshStandardMaterial {
+  const key = `${file}|${tint}`;
+  let m = decals.get(key);
+  if (!m) {
+    m = new THREE.MeshStandardMaterial({ map: texture(file, true), roughness: decal ? 0.6 : 0.9, color: tint });
+    if (decal) {
+      m.transparent = true;
+      m.depthWrite = false;
+      m.polygonOffset = true;
+      m.polygonOffsetFactor = -4;
+    }
+    decals.set(key, m);
+  }
+  return m;
+}
+
+/** A w×h plane showing an image; decals don't catch taps. */
+export function imagePlane(file: string, w: number, h: number, decal = false, tint = 0xffffff, mirror = false): THREE.Mesh {
+  const geo = new THREE.PlaneGeometry(w, h);
+  if (mirror) {
+    const uv = geo.getAttribute('uv');
+    for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i));
+  }
+  const m = new THREE.Mesh(geo, imageMat(file, decal, tint));
+  m.receiveShadow = true;
+  if (decal) m.userData.noHit = true;
+  return m;
+}
