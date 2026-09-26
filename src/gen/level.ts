@@ -207,7 +207,7 @@ class Gen {
   /** Make an item obtainable, spending up to `budget` extra steps on hiding it. */
   hide(item: string, make: () => THREE.Object3D, budget: number): void {
     const def = this.items[item];
-    if (budget > 0 || this.chance(0.55)) {
+    if (budget > 0 || this.chance(this.n >= 40 ? 0.85 : 0.55)) {
       const c = this.newContainer(budget > 0 ? undefined : ['free']);
       if (c) {
         this.gate(c.target, budget - 1);
@@ -685,7 +685,7 @@ class Gen {
 
   /** Put a clue somewhere: on a wall (scrawl/chalkboard) or on a note that may be hidden. */
   carrier(lines: string[], budget: number, pref: 'wall' | 'any'): Txt {
-    if (pref === 'wall' || budget <= 0 || this.chance(0.5)) return this.scrawlCarrier(lines, false);
+    if (pref === 'wall' || budget <= 0 || this.chance(this.n >= 50 ? 0.3 : 0.5)) return this.scrawlCarrier(lines, false);
     return this.noteCarrier(L('Kartka', 'Note'), lines.join('\n'), budget);
   }
 
@@ -783,8 +783,8 @@ class Gen {
 
   door(): void {
     const n = this.n;
-    const locks = n < 5 ? 1 : n < 20 ? 2 : n < 50 ? 3 : 4;
-    const depth = Math.min(8, 1 + Math.floor((n + 3) / 7));
+    const locks = n < 5 ? 1 : n < 20 ? 2 : n < 45 ? 3 : n < 75 ? 4 : 5;
+    const depth = Math.min(10, 1 + Math.floor((n + 3) / 7));
     const ids: string[] = [];
     const doorKinds: GateKind[][] = [['key'], ['code'], ['code', 'key', 'power'], ['chain', 'hammer', 'code']];
     for (let i = 0; i < locks; i++) {
