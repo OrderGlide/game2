@@ -6,7 +6,8 @@ import { sfx, vibrate, type Sfx } from '../audio';
 import { T, tx, type Txt } from '../i18n';
 import { canvasTex, drawGrime, drawPattern, mat, box, shade, mulberry32 } from '../view/kit';
 import { hangingBulb, shadowFigure } from '../view/horror';
-import type { Action, Builder, Ctx, DocDef, Flags, Handler, LockDef, ObjHandle, Place, RoomDef, ScareKind } from './types';
+import { pbr } from '../view/assets';
+import type { Action, Builder, Ctx, DocDef, Flags, Handler, LockDef, ObjHandle, Place, RoomDef, RoomTheme, ScareKind } from './types';
 
 export const HALF = 4;
 export const HEIGHT = 3.4;
@@ -112,11 +113,13 @@ export class RoomRuntime {
     this.scene.background = new THREE.Color(th.fog);
     this.scene.fog = new THREE.Fog(th.fog, 6, 16);
     const b = th.bright;
-    const hemi = new THREE.HemisphereLight(0xd8d4dc, shade(th.floor, 0.6), 1.25 * b);
-    const amb = new THREE.AmbientLight(0xffffff, 0.3 * b);
-    const moon = new THREE.DirectionalLight(0x9fb2e0, 0.9 * b);
+    // photo textures carry their own detail, so they get moodier light: less fill, a stronger bulb
+    const fill = th.pbr ? 0.5 : 1;
+    const hemi = new THREE.HemisphereLight(0xd8d4dc, shade(th.floor, 0.6), 1.25 * b * fill);
+    const amb = new THREE.AmbientLight(0xffffff, 0.3 * b * fill);
+    const moon = new THREE.DirectionalLight(0x9fb2e0, 0.9 * b * (th.pbr ? 0.8 : 1));
     moon.position.set(-3, 6, 4);
-    this.bulb = new THREE.PointLight(th.light, 26 * b, 16, 1.3);
+    this.bulb = new THREE.PointLight(th.light, (th.pbr ? 34 : 26) * b, 16, th.pbr ? 1.5 : 1.3);
     this.bulb.position.set(0, HEIGHT - 0.75, 0.3);
     if (this.opts.shadows) {
       this.bulb.castShadow = true;
@@ -132,6 +135,13 @@ export class RoomRuntime {
     this.bulbMesh = hb.getObjectByName('glass') as THREE.Mesh;
     this.root.add(hb);
 
+    if (th.pbr) this.buildPbrShell(th.pbr, rnd);
+    else this.buildDrawnShell(rnd);
+  }
+
+  /** Walls, floor and ceiling drawn on canvases from the theme colours. */
+  private buildDrawnShell(rnd: () => number): void {
+    const th = this.def.theme;
     const S = HALF * 2;
     // floor: pattern + dirt, not repeating
     const floorTex = canvasTex(1024, 1024, (c) => {
@@ -165,6 +175,45 @@ export class RoomRuntime {
       skirt.rotation.y = ROT[w];
       skirt.castShadow = false;
       this.root.add(skirt);
+    }
+  }
+
+  /** Photo-textured PBR surfaces, with a unique layer of drawn dirt on top so the tiling doesn't show. */
+  private buildPbrShell(p: NonNullable<RoomTheme['pbr']>, rnd: () => number): void {
+    const th = this.def.theme;
+    const S = HALF * 2;
+    const grime = (w: number, h: number, amount: number, drips: boolean) => new THREE.MeshStandardMaterial({
+      map: canvasTex(w, h, (c) => drawGrime(c, w, h, amount, rnd, drips)),
+      transparent: true, depthWrite: false, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2,
+    });
+    const plane = (w: number, h: number, m: THREE.Material) => {
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), m);
+      mesh.receiveShadow = true;
+      return mesh;
+    };
+    const flat = (o: THREE.Object3D, y: number, up: boolean) => {
+      o.rotation.x = up ? -Math.PI / 2 : Math.PI / 2;
+      o.position.y = y;
+      this.root.add(o);
+    };
+    flat(plane(S, S, pbr(p.floor, [S / p.floorTile, S / p.floorTile], { tint: 0xd8d0c8 })), 0, true);
+    flat(plane(S, S, grime(1024, 1024, th.grime * 0.9, false)), 0.002, true);
+    flat(plane(S, S, pbr(p.ceiling, [S / 2.5, S / 2.5], { tint: shade(th.ceiling, 2.2) })), HEIGHT, false);
+    for (let w = 0; w < 4; w++) {
+      const put = (o: THREE.Object3D, out: number, y: number) => {
+        o.position.copy(FACING[w]).multiplyScalar(HALF - out).setY(y);
+        o.rotation.y = ROT[w];
+        this.root.add(o);
+      };
+      put(plane(S, HEIGHT, pbr(p.wall, [S / p.wallTile, HEIGHT / p.wallTile], { tint: 0x869484, normal: 0.8 })), 0, HEIGHT / 2);
+      put(plane(S, HEIGHT, grime(1024, 436, th.grime, true)), 0.003, HEIGHT / 2);
+      const trim = p.trim ? pbr(p.trim, [S / 1.5, 0.12], { tint: 0x9a8c80 }) : mat(th.trim);
+      const skirt = box(S, 0.16, 0.035, trim);
+      skirt.castShadow = false;
+      put(skirt, 0.0175, 0);
+      const crown = box(S, 0.08, 0.05, trim);
+      crown.castShadow = false;
+      put(crown, 0.025, HEIGHT - 0.08);
     }
   }
 

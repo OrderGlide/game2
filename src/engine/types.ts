@@ -111,6 +111,8 @@ export interface RoomTheme {
   grime: number;
   /** base brightness (1 = normal) */
   bright: number;
+  /** photo-based PBR texture sets (public/textures) replacing the drawn wall/floor/ceiling patterns */
+  pbr?: { wall: string; floor: string; ceiling: string; trim?: string; wallTile: number; floorTile: number };
 }
 
 export interface Action {

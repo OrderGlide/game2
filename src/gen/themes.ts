@@ -21,7 +21,8 @@ export const THEMES: Theme[] = [
   {
     id: 'house', name: L('Opuszczony dom', 'Abandoned house'),
     wall: 0x6b5a4a, wall2: 0x5a4a3c, pattern: 'stripes', floor: 0x5a4030, floor2: 0x3a2a1e, floorKind: 'planks',
-    ceiling: 0x4a4038, trim: 0x2e241c, light: 0xffc27a, fog: 0x0c0907, grime: 0.55, bright: 0.9, door: 0x4a3222, drone: 55,
+    ceiling: 0x4a4038, trim: 0x2e241c, light: 0xffd8a8, fog: 0x0c0907, grime: 0.55, bright: 0.9, door: 0x4a3222, drone: 55,
+    pbr: { wall: 'wallpaper', floor: 'planks', ceiling: 'plaster', trim: 'oak', wallTile: 1.7, floorTile: 1.1 },
     decor: ['doll', 'rocking', 'brokenChair', 'portrait', 'bookshelf', 'candles'], prefer: ['cabinet', 'drawers', 'trunk', 'desk', 'painting', 'floorboards'],
     intro: [
       L('Drzwi zatrzasnęły się za tobą. W domu ktoś jest… Uciekaj.', 'The door slammed behind you. Someone is in the house… Get out.'),
