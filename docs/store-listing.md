@@ -5,90 +5,76 @@ Limity Google: tytuł do 30 znaków, krótki opis do 80, pełny opis do 4000.
 
 ## Polski (pl-PL), język domyślny
 
-**Tytuł** (27 znaków)
+**Tytuł** (28 znaków)
 
 ```
-Kocia Ucieczka: Escape Room
+Pokój 100: Horror Escape Room
 ```
 
-**Krótki opis** (76 znaków)
+**Krótki opis** (79 znaków)
 
 ```
-Uciekaj z zamkniętych pokoi razem z kotem Mruczkiem! Szukaj, łącz, zgaduj.
+100 zamkniętych pokoi. Każdy trudniejszy. Coś w ciemności nie chce, żebyś wyszedł.
 ```
 
 **Pełny opis**
 
 ```
-Drzwi się zatrzasnęły, a ty jesteś w środku razem z kotem Mruczkiem. Czas uciekać!
+Budzisz się w obcym, zamkniętym pokoju. Żarówka mruga. Na ścianie ktoś napisał krwią: UCIEKAJ.
 
-🔑 KLASYCZNY ESCAPE ROOM
-Rozglądaj się ściana po ścianie, zaglądaj do szuflad i szaf, zbieraj przedmioty i łącz je w ekwipunku. Łam szyfry do kłódek, rozwiązuj zagadki z zegarem, lustrem, telewizorem i starą mapą, a potem otwórz drzwi do następnego pokoju.
+🚪 100 POKOI, JEDNO WYJŚCIE
+Każdy pokój to zagadka. Przeszukuj szafy, komody, kufry, trumny i kratki wentylacyjne. Zbieraj klucze, narzędzia i kartki, łącz przedmioty i łam szyfry do kłódek, klawiatur i zamków elektronicznych. Każdy kolejny pokój jest trudniejszy.
 
-🐱 KOT JEST CZĘŚCIĄ ZAGADKI
-Mruczek śpi na kluczyku, pilnuje szafki, chowa się w koszu na pranie i utyka na belce pod dachem. Zrozum, czego chce kot, a znajdziesz drogę dalej. I nie zapomnij go pogłaskać!
+🩸 10 PRZERAŻAJĄCYCH MIEJSC
+Opuszczony dom, piwnica, szpital psychiatryczny, szkoła nocą, hotel „Cisza”, kostnica, laboratorium, krypta, kanały… i Pokój 100.
 
-🏠 6 POKOI W ROZDZIALE „DOM”
-Sypialnia, kuchnia, łazienka, salon, gabinet dziadka i ciemny strych. Każdy pokój to nowe pomysły: kolorowe zamki, kłódki z literami i symbolami, przesuwanki i skrzynka z bezpiecznikami.
+🔦 CORAZ SPRYTNIEJSZE ZAGADKI
+Zegary, które stanęły o północy. Napisy widoczne tylko w świetle UV. Szyfry z cyfr rzymskich, kostek i symboli. Kody podzielone na części i ukryte w różnych kątach. Bezpieczniki, bez których nic nie działa. Ciemne pokoje, w których najpierw musisz znaleźć latarkę.
 
-🐠 UKRYTE ZŁOTE RYBKI
-W każdym pokoju ukryliśmy złotą rybkę. Znajdź wszystkie, a Mruczek dostanie kosmiczne futerko.
+👁️ NIE JESTEŚ SAM
+Szepty za ścianą, pukanie w rurach, lalka, która odwraca głowę, gdy nie patrzysz. I cień, który czasem stoi w pokoju.
 
 💡 PODPOWIEDZI, GDY UTKNIESZ
-Każdy krok ma trzy podpowiedzi: od delikatnej sugestii do pełnego rozwiązania. Darmowa podpowiedź co 20 minut.
+Każdy krok ma trzy podpowiedzi: od lekkiej sugestii do pełnego rozwiązania. Darmowa podpowiedź co 20 minut.
 
-⭐ GWIAZDKI ZA SPRYT
-Przejdź pokój bez podpowiedzi i zdobądź 3 gwiazdki.
-
-😺 FUTERKA DLA MRUCZKA
-Rudy, czarny, biały, syjamski, łaciaty… a może złoty?
-
-📴 GRAJ OFFLINE
-Bez internetu, bez konta, bez pośpiechu. Postęp zapisuje się sam.
+⚠️ Gra zawiera mrok, krew i nagłe straszne momenty. Straszaki można wyłączyć w ustawieniach.
 ```
 
 ## English (en-US)
 
-**Title** (28 characters)
+**Title** (26 characters)
 
 ```
-Cat Escape: Room Escape Game
+Room 100: Horror Escape
 ```
 
-**Short description** (77 characters)
+**Short description** (78 characters)
 
 ```
-Escape locked rooms with Whiskers the cat! Search, combine, crack the codes.
+100 locked rooms. Each one harder. Something in the dark wants you to stay.
 ```
 
 **Full description**
 
 ```
-The door slammed shut and you're stuck inside with Whiskers the cat. Time to escape!
+You wake up in a strange locked room. The bulb flickers. Someone wrote on the wall in blood: RUN.
 
-🔑 A CLASSIC ESCAPE ROOM
-Look around wall by wall, peek into drawers and wardrobes, collect items and combine them in your inventory. Crack padlock codes, solve puzzles with a clock, a mirror, a TV and an old map, then open the door to the next room.
+🚪 100 ROOMS, ONE WAY OUT
+Every room is a puzzle. Search wardrobes, drawers, trunks, coffins and air vents. Collect keys, tools and notes, combine items and crack padlocks, keypads and electronic locks. Every room is harder than the last.
 
-🐱 THE CAT IS PART OF THE PUZZLE
-Whiskers sleeps on a key, guards a cabinet, hides in the laundry basket and gets stuck on a roof beam. Figure out what the cat wants and you'll find the way forward. Don't forget to pet him!
+🩸 10 TERRIFYING PLACES
+An abandoned house, a cellar, an asylum, a school at night, the Silent Hotel, a morgue, a laboratory, a crypt, the sewers… and Room 100.
 
-🏠 6 ROOMS IN CHAPTER "HOME"
-Bedroom, kitchen, bathroom, living room, grandpa's study and a dark attic. Every room brings new ideas: colour locks, letter and symbol padlocks, sliding puzzles and a fuse box.
+🔦 SMARTER AND SMARTER PUZZLES
+Clocks that stopped at midnight. Writing you can only see under UV light. Codes in Roman numerals, dice and symbols. Codes split into parts and hidden in different corners. Fuse boxes you must fix first. Dark rooms where you have to find a flashlight before anything else.
 
-🐠 HIDDEN GOLDEN FISH
-Every room hides a golden fish. Find them all and Whiskers gets a cosmic fur coat.
+👁️ YOU ARE NOT ALONE
+Whispers behind the wall, knocking in the pipes, a doll that turns its head when you look away. And a shadow that sometimes stands in the room.
 
 💡 HINTS WHEN YOU'RE STUCK
 Every step has three hints, from a gentle nudge to the full solution. A free hint every 20 minutes.
 
-⭐ STARS FOR SMARTS
-Escape a room without hints to earn 3 stars.
-
-😺 FUR COATS FOR WHISKERS
-Ginger, black, white, Siamese, tuxedo… or golden?
-
-📴 PLAY OFFLINE
-No internet, no account, no rush. Progress saves automatically.
+⚠️ Contains darkness, blood and sudden scares. Jump scares can be turned off in the settings.
 ```
 
 ## Grafiki (folder `store/`)
@@ -102,26 +88,27 @@ No internet, no account, no rush. Progress saves automatically.
 ## Kategoria i tagi
 
 - **Typ aplikacji:** Gra
-- **Kategoria:** Łamigłówki (Puzzle)
-- **Tagi:** Escape room, Zagadki, Logiczne, Przygodowe, Offline, Koty
+- **Kategoria:** Przygodowe (alternatywa: Łamigłówki)
+- **Tagi:** Escape room, Horror, Zagadki, Logiczne, Offline
 - **E-mail kontaktowy:** ten sam adres co w polityce prywatności
 - **Polityka prywatności:** publiczny URL do `docs/privacy-policy.html` (patrz README)
 
 ## Zawartość aplikacji (Play Console → Zasady → Zawartość aplikacji)
 
-**Grupa docelowa:** 13–15, 16–17, 18+. Nie zaznaczaj grup poniżej 13 lat
-(gra dla dzieci podlega programowi „Rodzina” i wymaga innych ustawień reklam).
+**Grupa docelowa:** 16–17, 18+ (horror; można też 13–15, jeśli ankieta IARC da PEGI 12).
 
 **Reklamy:** Tak, aplikacja zawiera reklamy.
 
 **Ankieta klasyfikacji treści (IARC):**
-- Kategoria: Gra (łamigłówka)
-- Przemoc, strach, seks, wulgaryzmy, narkotyki, hazard: nie
+- Kategoria: Gra (przygodowa / łamigłówka)
+- Przemoc: brak walki; krew widoczna jako napisy i plamy (bez obrażeń postaci)
+- Strach: **tak** — mroczny klimat, nagłe straszne momenty (jump scare)
+- Seks, wulgaryzmy, narkotyki, hazard: nie
 - Interakcja użytkowników / czat: nie
 - Udostępnianie lokalizacji: nie
 - Zakupy cyfrowe: tak
 - Zakupy z losowymi przedmiotami (loot boxy): **nie**
-- Spodziewany wynik: PEGI 3 / USK 0 / ESRB Everyone
+- Spodziewany wynik: PEGI 12 / USK 12 / ESRB Teen
 
 **Identyfikator reklamowy:** Tak, używany do reklam (AdMob).
 

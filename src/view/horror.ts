@@ -19,6 +19,8 @@ export interface Container {
   /** footprint width along the wall */
   w: number;
   mount: 'floor' | 'wall';
+  /** taller than ~1.5 m (would cover things hung on the wall next to it) */
+  tall?: boolean;
   /** bottom height for wall-mounted containers */
   wallY: number;
   /** where contents sit when open (relative: u along the wall, y up, out from the wall) */
@@ -42,7 +44,7 @@ export function cabinet(color = OLDWOOD): Container {
     g.add(h);
   }
   return {
-    node: g, w: 1.1, mount: 'floor', wallY: 0,
+    node: g, w: 1.1, mount: 'floor', wallY: 0, tall: true,
     inside: { u: 0, y: 0.98, out: 0.25 }, zoom: { y: 1.0, out: 0.3, dist: 1.8, look: 0.2 }, lockAt: { u: 0, y: 0.95, out: 0.58 },
     open: (n, o, k) => { swing(n, 'doorL', o ? -1.8 : 0, k); swing(n, 'doorR', o ? 1.8 : 0, k); },
     sound: 'creak', name: { pl: 'szafa', plAcc: 'szafę', en: 'wardrobe' },
@@ -58,7 +60,7 @@ export function locker(color = 0x4f6b62): Container {
   d.add(box(0.04, 0.14, 0.04, STEEL, 0.5, 0.95, 0.04));
   g.add(named(d, 'door'));
   return {
-    node: g, w: 0.6, mount: 'floor', wallY: 0,
+    node: g, w: 0.6, mount: 'floor', wallY: 0, tall: true,
     inside: { u: 0, y: 1.38, out: 0.25 }, zoom: { y: 1.4, out: 0.3, dist: 1.4, look: 0.15 }, lockAt: { u: 0.2, y: 0.95, out: 0.56 },
     open: (n, o, k) => swing(n, 'door', o ? -1.9 : 0, k),
     sound: 'metal', name: { pl: 'szafka metalowa', plAcc: 'metalową szafkę', en: 'locker' },
@@ -79,16 +81,16 @@ export function drawers(color = OLDWOOD): Container {
 }
 
 export function desk(color = OLDWOOD): Container {
-  const g = group(box(1.3, 0.06, 0.65, color, 0, 0.74, 0.33));
-  for (const x of [-0.6, 0.6]) g.add(box(0.06, 0.74, 0.06, shade(color, 0.8), x, 0, 0.05), box(0.06, 0.74, 0.06, shade(color, 0.8), x, 0, 0.6));
-  g.add(box(0.5, 0.2, 0.6, shade(color, 0.9), 0.35, 0.54, 0.32));
-  const dr = named(group(box(0.44, 0.15, 0.55, shade(color, 1.12), 0.35, 0.56, 0.33), box(0.4, 0.01, 0.5, shade(color, 0.6), 0.35, 0.71, 0.33), ball(0.02, 0x8a7a50, 0.35, 0.63, 0.62)), 'drawer');
+  const g = group(box(1.1, 0.06, 0.65, color, 0, 0.74, 0.33));
+  for (const x of [-0.5, 0.5]) g.add(box(0.06, 0.74, 0.06, shade(color, 0.8), x, 0, 0.05), box(0.06, 0.74, 0.06, shade(color, 0.8), x, 0, 0.6));
+  g.add(box(0.46, 0.2, 0.6, shade(color, 0.9), 0.27, 0.54, 0.32));
+  const dr = named(group(box(0.42, 0.15, 0.55, shade(color, 1.12), 0.27, 0.56, 0.33), box(0.38, 0.01, 0.5, shade(color, 0.6), 0.27, 0.71, 0.33), ball(0.02, 0x8a7a50, 0.27, 0.63, 0.62)), 'drawer');
   g.add(dr);
   // clutter on top
-  g.add(box(0.25, 0.04, 0.18, PAPER, -0.3, 0.8, 0.3), cyl(0.04, 0.035, 0.1, 0xd8d0c0, -0.05, 0.8, 0.45));
+  g.add(box(0.25, 0.04, 0.18, PAPER, -0.25, 0.8, 0.3), cyl(0.04, 0.035, 0.1, 0xd8d0c0, -0.02, 0.8, 0.45));
   return {
-    node: g, w: 1.3, mount: 'floor', wallY: 0,
-    inside: { u: 0.35, y: 0.73, out: 0.65 }, zoom: { y: 0.72, out: 0.6, dist: 1.3, look: 0.6 }, lockAt: { u: 0.35, y: 0.63, out: 0.64 },
+    node: g, w: 1.1, mount: 'floor', wallY: 0,
+    inside: { u: 0.27, y: 0.73, out: 0.65 }, zoom: { y: 0.72, out: 0.6, dist: 1.3, look: 0.6 }, lockAt: { u: 0.27, y: 0.63, out: 0.64 },
     open: (n, o, k) => slide(n, 'drawer', o ? 0.34 : 0, k),
     sound: 'drawer', name: { pl: 'biurko', plAcc: 'biurko', en: 'desk' },
   };
@@ -212,7 +214,7 @@ export function coffin(color = 0x3a2418): Container {
   lid.add(lidM, box(0.04, 0.4, 0.02, 0x8a7a50, 0.34, 1.2, 0.06), box(0.2, 0.04, 0.02, 0x8a7a50, 0.34, 1.34, 0.06));
   g.add(named(lid, 'lid'));
   return {
-    node: g, w: 0.7, mount: 'floor', wallY: 0,
+    node: g, w: 0.7, mount: 'floor', wallY: 0, tall: true,
     inside: { u: 0, y: 1.03, out: 0.25 }, zoom: { y: 1.1, out: 0.3, dist: 1.6, look: 0.15 }, lockAt: { u: 0.15, y: 1.0, out: 0.52 },
     open: (n, o, k) => swing(n, 'lid', o ? -1.9 : 0, k),
     sound: 'creak', name: { pl: 'trumna', plAcc: 'trumnę', en: 'coffin' },
@@ -325,8 +327,13 @@ export function symbolPainting(symbols: string[], colors?: string[]): THREE.Grou
     c.fillStyle = gr; c.fillRect(0, 0, W, H);
     symbols.forEach((s, i) => {
       const cx = W / 2 + (i - (symbols.length - 1) / 2) * (W * 0.84 / symbols.length);
-      if (colors) { c.fillStyle = colors[i]; c.beginPath(); c.arc(cx, H / 2, H * 0.24, 0, Math.PI * 2); c.fill(); }
-      else text(c, s, cx, H / 2, H * 0.5, '#c9b27a', 400, "'Special Elite', Georgia, serif");
+      if (colors) { c.fillStyle = colors[i]; c.beginPath(); c.arc(cx, H / 2, H * 0.24, 0, Math.PI * 2); c.fill(); return; }
+      const m = /^(.+?)(\d+)$/.exec(s);
+      if (m) {
+        // symbol with a small order number underneath
+        text(c, m[1], cx, H * 0.42, H * 0.42, '#c9b27a', 400, "'Special Elite', Georgia, serif");
+        text(c, m[2], cx, H * 0.82, H * 0.2, '#e8d8b0', 400, "'Special Elite', Georgia, serif");
+      } else text(c, s, cx, H / 2, H * 0.5, '#c9b27a', 400, "'Special Elite', Georgia, serif");
     });
     drawGrime(c, W, H, 0.5, mulberry32(symbols.length * 17), false);
   }, 256);

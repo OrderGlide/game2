@@ -1,4 +1,4 @@
-package pl.jasior.catescape;
+package pl.jasior.room100;
 
 import com.getcapacitor.BridgeActivity;
 

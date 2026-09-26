@@ -46,7 +46,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: cat-escape-debug-apk
+          name: room100-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
 
       - name: Build signed release bundle
@@ -63,5 +63,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: ${{ hashFiles('android/app/build/outputs/bundle/release/*.aab') != '' }}
         with:
-          name: cat-escape-release-aab
+          name: room100-release-aab
           path: android/app/build/outputs/bundle/release/*.aab

@@ -1,83 +1,68 @@
-# Kocia Ucieczka — opis gry (GDD)
+# Pokój 100 — opis gry (GDD)
 
-## Pomysł w jednym zdaniu
-Klasyczna gra „ucieczka z pokoju” na telefon, w której zamiast samotnego zamknięcia masz towarzysza: kota Mruczka,
-który jest częścią każdej zagadki. Szukasz przedmiotów, łączysz je, łamiesz szyfry i uciekasz z pokoju do pokoju.
+## W jednym zdaniu
+Horrorowy escape room na telefon: 100 zamkniętych pokoi, każdy trudniejszy, w dziesięciu coraz bardziej przerażających miejscach.
 
 ## Dla kogo
-Fani starych gier flash typu escape room, zagadek logicznych i kotów. Sesje po 5–20 minut na pokój,
-bez presji czasu i bez refleksu. Gra ma być „do pomyślenia”, a nie „do klikania”.
+Fani gier „ucieczka z pokoju” i lekkiego horroru (13+). Sesje 3–30 minut na pokój, bez refleksu, za to z myśleniem.
 
 ## Pętla rozgrywki
-1. Rozglądasz się: 4 ściany pokoju, przełączane strzałkami lub przesunięciem palca.
-2. Stukasz meble: otwierają się, przybliżają albo coś mówią (dymek).
-3. Zbierasz przedmioty do ekwipunku (prawa kolumna).
-4. Używasz przedmiotów na obiektach (wybierz → stuknij cel) i łączysz je ze sobą (wybierz jeden → stuknij drugi).
-5. Znajdujesz wskazówki (zegar, kartka, obraz, lustro, telewizor) i wpisujesz szyfr w kłódce lub minigrze.
-6. Otwierasz drzwi i przechodzisz do następnego pokoju. Opcjonalnie szukasz ukrytej złotej rybki.
+1. Rozglądasz się: 4 ściany, strzałki lub przesunięcie palcem.
+2. Stukasz meble: otwierają się, przybliżają albo są zamknięte (kłódka, szyfr, łańcuch, deski, śrubki, sznur, prąd).
+3. Zbierasz przedmioty (klucze, narzędzia, kartki, bezpieczniki, lampę UV, baterie) i łączysz je w ekwipunku.
+4. Szukasz szyfrów: zegar, krwawe napisy, tablica, obraz z symbolami, ponumerowane świece, telewizor, kartki.
+5. Otwierasz wszystkie zamki w drzwiach i uciekasz do następnego pokoju.
 
-## Rola kota
-W każdym pokoju Mruczek coś blokuje albo coś ma. Trzeba zrozumieć, czego chce:
-śpi na kluczyku (przysmaki), pilnuje szafki (mleko do miski), leży w koszu na pranie (myszka),
-drzemie na poduszce z pilotem (wędka z piórkiem), wygrzewa się pod lampą (zgaś światło),
-utknął na belce z kluczykiem w pyszczku (tuńczyk). Stuknięcie kota = miauknięcie, mruczenie, serduszka.
+## Generator poziomów (`src/gen/level.ts`)
+Poziom N powstaje z ziarna N, więc zawsze jest taki sam. Generator zaczyna od drzwi:
+- drzwi mają 1 zamek (poziomy 1–4), 2 (5–19), 3 (20–49) albo 4 (50+);
+- każdy zamek czegoś wymaga: **klucza**, **kodu**, **narzędzia** (młotek → deski, śrubokręt → kratka, nożyce → łańcuch, nóż → sznur),
+  **prądu** (skrzynka z bezpiecznikami, minigra „zapal wszystkie”) albo **układanki**;
+- to, czego wymaga, jest schowane w meblu, który sam może być zamknięty — i tak dalej, aż do głębokości 1–8;
+- kody dostają wskazówki coraz mniej wprost:
 
-## Rozdział 1 „Dom” (6 pokoi)
+| Od poziomu | Nowość |
+|---|---|
+| 1 | klucz, kartka z kodem |
+| 3 | kod napisany krwią na ścianie |
+| 6 | zegar (godzina = kod), klawiatura |
+| 10 | kłódka z literami (słowo) |
+| 12 | cyfry słowami, szkatułki z układanką |
+| 14 | kłódka z symbolami |
+| 15 | kod podzielony na części I, II, III w różnych miejscach |
+| 18 | prąd i zamki elektroniczne |
+| 20 | cyfry rzymskie, kolorowy zamek (świece z numerami, obrazy) |
+| 26 | napisy widoczne tylko w świetle lampy UV |
+| 30 | kostki do gry, słowa czytane od tyłu |
+| 35 | działania matematyczne |
+| 40 | lustrzane napisy, symbole z numerami kolejności |
+| 45 | telewizor pokazujący kod po przywróceniu prądu, akrostych |
+| 55 | szyfr symboli z kluczem na osobnej kartce |
 
-| # | Pokój | Główny łańcuch | Nowość | Złota rybka |
-|---|---|---|---|---|
-| 1 | Sypialnia | szafa → przysmaki → kot → kluczyk → szafka nocna → liścik → zegar 7:45 → kłódka | podstawy: otwieranie, użycie przedmiotu, notatka, kłódka | pod rogiem dywanu |
-| 2 | Kuchnia | lodówka → mleko → miska → szafka pod zlewem → śrubokręt → kratka okapu → przepis → kubki → klawiatura 1368 | kolejność z dokumentu + ukryte cyfry | w zamrażarce |
-| 3 | Łazienka | szafka → myszka → kot z kosza → kurek → prysznic → para → lustro ★●▲■ → kaczki → kolorowy zamek | zmiana stanu pokoju (para), mapowanie symbol → kolor | w pralce |
-| 4 | Salon | doniczka → piórko → kot → poduszka → pilot; obraz 🌙☀⭐ → szuflada → baterie; pilot+baterie → TV „3·1·4·2” → książki → MIAU | łączenie przedmiotów, zamek z literami i symbolami | w akwarium (potrzebna siatka z szafki RTV) |
-| 5 | Gabinet | szuflada → lupa → mapa → globus 942 → kluczyk → szuflada → pokrętło → obraz → sejf-przesuwanka → duży klucz | dłuższy łańcuch, przesuwanka | opcjonalny łańcuch: lampa → kot się przenosi → zdjęcie 3:15 → zegar szafkowy |
-| 6 | Strych | latarka+baterie → bezpieczniki (światła) → cyfry na kartonach 2704 → kufer → tuńczyk → kot z belki → kluczyk → drabina → okno dachowe | ciemność i światło, minigra „zapal wszystkie” | za zakurzonym lustrem (szmatka z kufra) |
+Dodatkowo: ciemne poziomy (co piąty od 8.) zaczynają się od szukania latarki i baterii; od poziomu 11 są
+fałszywe schowki, od 40 bezużyteczne przedmioty w ekwipunku. Każdy krok ma 3 podpowiedzi, a test
+automatyczny przechodzi wszystkie 100 poziomów.
 
-Każdy pokój ma w kodzie **scenariusz rozwiązania** i **kroki podpowiedzi**. Test automatyczny (`npm test`)
-przechodzi wszystkie pokoje i sprawdza, że żaden krok podpowiedzi nie zostaje otwarty.
+## Klimat
+Mgła, zacieki i pęknięcia na ścianach, migająca żarówka (czasem gaśnie), krwawe napisy („UCIEKAJ”, „ZA TOBĄ”),
+lalki obracające głowę, manekiny, bujany fotel, który sam się buja, szepty, pukanie w rurach, kapanie wody,
+niskie buczenie w tle i fałszywe dźwięki pianina. Straszaki przy otwieraniu niektórych mebli: cień stojący w pokoju
+przez ułamek sekundy, trzask i wstrząs, zgaśnięcie światła. Można je wyłączyć w ustawieniach; na starcie gra pokazuje ostrzeżenie.
 
-## Ekonomia i zarabianie
+## Zarabianie
+Wszystko za darmo, ale z czasem gra wymaga dużo cierpliwości — skróty są płatne:
 
-Filozofia: **wszystko da się przejść za darmo**, ale zagadki wymagają czasu. Kto nie lubi czekać ani się męczyć, kupuje skróty.
-
-| Zasób | Skąd | Na co |
+| | Za darmo | Za pieniądze |
 |---|---|---|
-| 💡 Podpowiedzi | 3 na start, 1 darmowa co 20 min (maks. 1 w zapasie), reklama z nagrodą (co 3 min, maks. 15/dzień), nagroda dzienna, 40 🪙, paczki IAP | odsłonięcie podpowiedzi (1 💡 za każdy z 3 poziomów), pominięcie pokoju (5 💡) |
-| 🪙 Monety | ukończenie pokoju: 20 + 10 za gwiazdkę + 30 za złotą rybkę (x2 za reklamę), nagroda dzienna | podpowiedzi (40), futerka kota (300–700) |
-| ⭐ Gwiazdki | 3 bez podpowiedzi, 2 przy ≤ 2, 1 przy więcej | prestiż, powód do samodzielnego myślenia |
-| 🐠 Złote rybki | 1 ukryta w każdym pokoju | wszystkie 6 = kosmiczne futerko |
+| 💡 Podpowiedzi | 3 na start, 1 co 20 min, 1 za reklamę (co 3 min, max 15/dzień), nagroda dzienna, 40 🪙 | paczki 5 / 20 / 60 |
+| ⏭️ Pominięcie poziomu | 5 💡 | — |
+| Reklamy | pełnoekranowe rzadko, tylko między poziomami | „Bez reklam” lub pakiet przetrwania (20 💡 + bez reklam) |
 
-**Produkty w Google Play** (`src/platform/config.ts`):
-
-| ID | Zawartość | Cena startowa |
-|---|---|---|
-| `starter_pack` | 15 💡 + złote futerko + bez reklam (jednorazowy) | 14,99 zł |
-| `hints_small` | 5 💡 | 4,99 zł |
-| `hints_medium` | 20 💡 | 14,99 zł |
-| `hints_large` | 60 💡 | 34,99 zł |
-| `no_ads` | brak reklam między pokojami | 9,99 zł |
-
-Nie ma skrzynek z losową zawartością, więc nie trzeba publikować szans na nagrody.
-
-**Reklamy:** z nagrodą (podpowiedź, podwójne monety) oraz rzadkie pełnoekranowe **tylko między pokojami**,
-od 2. pokoju, najwcześniej po 5 minutach sesji, co najmniej 4 minuty odstępu.
-
-## Retencja
-- Darmowa podpowiedź co 20 minut: powód, żeby wrócić, gdy utkniesz.
-- Nagroda dzienna z 7-dniową serią (monety i podpowiedzi).
-- Gwiazdki i złote rybki: powód, żeby przejść pokój jeszcze raz, lepiej.
-- Stan pokoju zapisuje się na bieżąco, więc można wyjść w połowie i wrócić.
-
-## Technika
-- Three.js, wszystkie modele z brył, tekstury rysowane w canvasie, cienie (wyłączane na słabszych telefonach).
-- Jeden pokój w pamięci naraz, kilkaset prostych siatek: płynnie na tanich telefonach.
-- Dźwięki i muzyka syntezowane w WebAudio (bez plików audio).
-- Zapis w `localStorage` (WebView Capacitora). Bez serwera, bez konta.
+Bez skrzynek z losową zawartością.
 
 ## Roadmapa
-1. **Rozdział 2 „Ogród i szopa”** (6 pokoi): na zewnątrz, pogoda, narzędzia ogrodowe, kot na drzewie.
-2. **Rozdział 3 „Stary zamek”**: dłuższe łańcuchy, więcej minigier (rury, wagi, lustra z promieniem).
-3. Odblokowanie rozdziałów: kolejny rozdział otwiera się po ukończeniu poprzedniego albo od razu za zakup „Klucz do rozdziału”.
-4. Codzienna zagadka (mini-pokój generowany z puli) z nagrodą w podpowiedziach.
-5. Przypomnienia (lokalne powiadomienia): „Twoja darmowa podpowiedź czeka!”.
-6. Zapis w chmurze (Google Play Games) i weryfikacja zakupów na serwerze.
+1. Zapis w chmurze (Google Play Games), osiągnięcia.
+2. Tryb „Koszmar”: te same 100 poziomów z limitem czasu i częstszymi straszakami.
+3. Codzienny pokój (dodatkowy poziom z ziarnem = data) z rankingiem czasów.
+4. Więcej typów zagadek: rury do obracania, wagi, radio z częstotliwością, szyfr Morse'a (pukanie).
+5. Fabuła: kartki z pamiętnika rozrzucone po 100 pokojach, które łączą się w historię.

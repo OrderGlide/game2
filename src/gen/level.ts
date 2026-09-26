@@ -15,7 +15,7 @@ type GateKind = 'free' | 'key' | 'code' | 'chain' | 'hammer' | 'screwdriver' | '
 type CodeKind = 'digits' | 'keypad' | 'letters' | 'symbols' | 'colors';
 type ToolKind = 'hammer' | 'screwdriver' | 'cutters' | 'knife';
 
-interface Slot { wall: Wall; u: number; mount: 'floor' | 'wall'; maxW: number; used: boolean }
+interface Slot { wall: Wall; u: number; mount: 'floor' | 'wall'; maxW: number; used: boolean; w?: number; tall?: boolean }
 interface Step { done: (f: Flags, has: (i: string) => boolean) => boolean; hints: Txt[]; actions: Action[] }
 
 interface ObjSpec {
@@ -138,23 +138,27 @@ class Gen {
 
   private makeSlots(): void {
     const s = (wall: Wall, u: number, mount: 'floor' | 'wall', maxW: number) => this.slots.push({ wall, u, mount, maxW, used: false });
-    s(0, 1.25, 'floor', 1.0); s(0, 2.85, 'floor', 1.1); s(0, 2.05, 'wall', 0.75);
+    s(0, 1.1, 'floor', 0.95); s(0, 2.75, 'floor', 1.15); s(0, 1.95, 'wall', 0.75);
     for (const w of [1, 2, 3] as Wall[]) {
-      s(w, -2.35, 'floor', 1.3); s(w, 0, 'floor', 1.3); s(w, 2.35, 'floor', 1.3);
-      s(w, -1.15, 'wall', 0.75); s(w, 1.15, 'wall', 0.75);
+      for (const u of [-2.46, -0.82, 0.82, 2.46]) s(w, u, 'floor', 1.15);
+      for (const u of [-1.64, 0, 1.64]) s(w, u, 'wall', 0.75);
     }
     this.shuffle(this.slots);
     for (const w of [0, 1, 2, 3] as Wall[]) {
       for (const u of w === 0 ? [0.3, 2.1] : [-2.9, -1.3, 0.8, 2.6]) this.loose.push({ wall: w, u, out: 1.05 + this.rnd() * 0.35 });
-      for (const u of [-2.2, 0.2, 2.3]) if (!(w === 0 && u < 0)) this.high.push({ wall: w, u, y: 1.95 });
+      for (const u of [-2.2, 0.2, 2.3]) if (!(w === 0 && u < 0)) this.high.push({ wall: w, u, y: 1.9 });
     }
     this.shuffle(this.loose);
     this.shuffle(this.high);
   }
 
-  takeSlot(mount: 'floor' | 'wall', w: number): Slot | null {
-    const s = this.slots.find((x) => !x.used && x.mount === mount && x.maxW >= w);
-    if (s) s.used = true;
+  /** Free slot for something `w` wide; tall floor pieces and wall pieces must not overlap each other. */
+  takeSlot(mount: 'floor' | 'wall', w: number, tall = false): Slot | null {
+    const clash = (a: Slot, aw: number, b: Slot) => a.wall === b.wall && b.used && Math.abs(a.u - b.u) < (aw + (b.w ?? b.maxW)) / 2;
+    const s = this.slots.find((x) => !x.used && x.mount === mount && x.maxW >= w && (
+      mount === 'wall' ? !this.slots.some((f) => f.mount === 'floor' && f.tall && clash(x, w, f))
+        : !tall || !this.slots.some((f) => f.mount === 'wall' && clash(x, w, f))));
+    if (s) { s.used = true; s.w = w; s.tall = tall; }
     return s ?? null;
   }
 
@@ -275,7 +279,7 @@ class Gen {
     this.shuffle(weighted);
     for (const o of weighted) {
       const model = o.make();
-      const slot = this.takeSlot(model.mount, model.w);
+      const slot = this.takeSlot(model.mount, model.w, !!model.tall);
       if (!slot) continue;
       return this.placeContainer(o.key, model, slot, o.gates.filter((g) => allowed.includes(g) && (!only || only.includes(g))));
     }
@@ -564,7 +568,7 @@ class Gen {
     if (n >= 12) formats.push('words');
     if (n >= 15) formats.push('split');
     if (n >= 20) formats.push('roman');
-    if (n >= 26) formats.push('uv');
+    if (n >= 26 && this.uv !== 'pending') formats.push('uv');
     if (n >= 30) formats.push('dice');
     if (n >= 35) formats.push('math');
     if (n >= 40) formats.push('mirror');
@@ -644,7 +648,7 @@ class Gen {
 
   wordClue(word: string, budget: number): Txt {
     const n = this.n;
-    const f = this.pick(['plain', 'plain', ...(n >= 30 ? ['reverse'] : []), ...(n >= 45 ? ['acrostic'] : []), ...(n >= 26 ? ['uv'] : [])]);
+    const f = this.pick(['plain', 'plain', ...(n >= 30 ? ['reverse'] : []), ...(n >= 45 ? ['acrostic'] : []), ...(n >= 26 && this.uv !== 'pending' ? ['uv'] : [])]);
     if (f === 'reverse') {
       const w = this.carrier([word.split('').reverse().join('')], budget, 'wall');
       return L(`${tx(w)} — przeczytaj od tyłu`, `${tx(w)} — read it backwards`);
@@ -690,9 +694,9 @@ class Gen {
     const chalk = this.theme.id === 'school' && !mirror;
     const id = this.id('w');
     const w = Math.min(2.0, 0.5 + Math.max(...lines.map((l) => l.length)) * 0.2);
-    const h = Math.min(1.0, 0.3 + lines.length * 0.28);
+    const h = Math.min(0.72, 0.3 + lines.length * 0.2);
     this.specs.push({
-      id, place: { ...p, y: (p.y ?? 2.2) + (chalk ? -0.3 : 0), out: 0.02 }, uses: {},
+      id, place: { ...p, y: (p.y ?? 1.9) + (chalk ? -0.25 : 0), out: 0.02 }, uses: {},
       make: () => {
         if (chalk) return H.chalkboard(lines, w, h);
         const s = H.scrawl(lines, w, h, '#7a0808', mirror);
@@ -724,7 +728,7 @@ class Gen {
     const id = this.id('uv');
     const flag = `lit_${id}`;
     const w = Math.min(2.0, 0.5 + Math.max(...lines.map((l) => l.length)) * 0.2);
-    const h = Math.min(1.0, 0.3 + lines.length * 0.28);
+    const h = Math.min(0.72, 0.3 + lines.length * 0.2);
     this.specs.push({
       id, place: { ...p, out: 0.02 }, uses: {
         uv: (c) => { c.f[flag] = true; c.sfx('uv'); c.say(L('W fioletowym świetle na ścianie pojawił się napis!', 'Writing appears on the wall in the purple light!')); },
@@ -880,14 +884,21 @@ class Gen {
     }
     // decoration: theme props in free floor slots, writing, handprints, cobwebs
     const rnd = this.rnd;
-    for (const s of this.slots.filter((x) => !x.used)) {
-      if (s.mount === 'floor') {
-        const d = this.pick(this.theme.decor);
-        this.decor.push((b) => { const node = decorModel(d, rnd); b.fx(this.id('d'), node, { wall: s.wall, u: s.u }).anim(d === 'rocking' ? (_f, nd) => { const r = nd.getObjectByName('rock'); if (r) r.rotation.x = Math.sin(performance.now() / 700) * 0.12; } : d === 'doll' ? (_f, nd) => { const h = nd.getObjectByName('head'); if (h) h.rotation.y = Math.sin(performance.now() / 4000) > 0.95 ? 1.2 : 0; } : () => {}); });
-      } else if (s.mount === 'wall') {
-        const r = this.rnd();
-        this.decor.push((b) => b.fx(this.id('d'), r < 0.6 ? H.portrait(rnd) : H.wallShelf(rnd), { wall: s.wall, u: s.u, y: r < 0.6 ? 1.3 : 1.45 }));
-      }
+    const clash = (a: Slot, aw: number, b: Slot) => a.wall === b.wall && b.used && Math.abs(a.u - b.u) < (aw + (b.w ?? b.maxW)) / 2;
+    for (const s of this.slots.filter((x) => !x.used && x.mount === 'floor')) {
+      const nearWall = this.slots.some((x) => x.mount === 'wall' && clash(s, 1.1, x));
+      const pool = this.theme.decor.filter((k) => !nearWall || (k !== 'mannequin' && k !== 'bookshelf'));
+      const d = this.pick(pool.length ? pool : (['candles'] as DecorKind[]));
+      s.used = true;
+      s.w = 1.0;
+      s.tall = d === 'mannequin' || d === 'bookshelf';
+      this.decor.push((b) => { const node = decorModel(d, rnd); b.fx(this.id('d'), node, { wall: s.wall, u: s.u }).anim(d === 'rocking' ? (_f, nd) => { const r = nd.getObjectByName('rock'); if (r) r.rotation.x = Math.sin(performance.now() / 700) * 0.12; } : d === 'doll' ? (_f, nd) => { const h = nd.getObjectByName('head'); if (h) h.rotation.y = Math.sin(performance.now() / 4000) > 0.95 ? 1.2 : 0; } : () => {}); });
+    }
+    for (const s of this.slots.filter((x) => !x.used && x.mount === 'wall')) {
+      if (this.slots.some((f) => f.mount === 'floor' && f.tall && clash(s, 0.7, f))) continue;
+      const r = this.rnd();
+      if (r < 0.2) continue;
+      this.decor.push((b) => b.fx(this.id('d'), r < 0.6 ? H.portrait(rnd) : H.wallShelf(rnd), { wall: s.wall, u: s.u, y: r < 0.6 ? 1.3 : 1.45 }));
     }
     // small clutter on the floor: bottles, papers, bones of something
     for (let i = 0; i < 5 + Math.floor(this.rnd() * 4); i++) {

@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Cat Escape</string>
-    <string name="title_activity_main">Cat Escape</string>
-    <string name="package_name">pl.jasior.catescape</string>
-    <string name="custom_url_scheme">pl.jasior.catescape</string>
+    <string name="app_name">Room 100</string>
+    <string name="title_activity_main">Room 100</string>
+    <string name="package_name">pl.jasior.room100</string>
+    <string name="custom_url_scheme">pl.jasior.room100</string>
 </resources>
