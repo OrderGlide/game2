@@ -1,0 +1,22 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/.idea/
+
+# Secrets — never commit signing keys, passwords or service credentials
+*.keystore
+*.jks
+*.jks.b64
+*.p12
+*.pem
+*.key
+.env
+.env.*
+keystore.properties
+google-services.json
+play-service-account*.json
